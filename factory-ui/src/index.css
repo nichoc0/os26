@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@theme {
+  --color-os26-bg: #0B1120;
+  --color-os26-fg: #cbd5e1;
+}
+
+html, body, #root {
+  min-height: 100vh;
+  background: #0B1120;
+  color: #cbd5e1;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "Segoe UI", sans-serif;
+}
