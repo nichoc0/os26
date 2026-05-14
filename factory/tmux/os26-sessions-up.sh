@@ -44,13 +44,13 @@ fi
 
 # Three sessions, each with its system prompt pre-loaded.
 # (macOS ships bash 3.2 — no associative arrays. Use a function lookup instead.)
-SESSIONS="os26-research os26-adapt os26-review"
+SESSIONS="os26-research os26-frontend os26-review"
 
 prompt_path_for() {
   case "$1" in
     os26-research) echo "$CWD/factory/agents/research.md" ;;
-    os26-adapt)    echo "$CWD/factory/agents/adapt.md" ;;
-    os26-review)   echo "$CWD/factory/agents/review.md" ;;
+    os26-frontend) echo "$CWD/factory/agents/frontend.md" ;;
+    os26-review)   echo "$CWD/factory/agents/pr.md" ;;
     *) echo "" ;;
   esac
 }
@@ -74,10 +74,9 @@ start_session() {
   fi
 
   echo "starting $SESSION (system_prompt=$(basename "$SYSTEM_PROMPT"))"
-  # Match the operator's interactive Claude session model (Opus 4.7) so all
-  # agent work shares the same quota pool. No model/effort override = uses
-  # whatever default is configured in the user's settings.
-  local CLAUDE_ARGS="--dangerously-skip-permissions"
+  # Opus 4.7 + bypass permissions (== auto-mode / shift-tab-3x). All OS26
+  # agent REPLs run on the same model so quota burn is predictable.
+  local CLAUDE_ARGS="--dangerously-skip-permissions --model claude-opus-4-7"
   if [ -f "$SYSTEM_PROMPT" ]; then
     CLAUDE_ARGS="$CLAUDE_ARGS --append-system-prompt $SYSTEM_PROMPT"
   else

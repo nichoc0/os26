@@ -60,54 +60,38 @@ async function makeEmitter(eventsFile) {
   };
 }
 
-// ---------- claude subprocess (auto-mode, stream-json) ----------
-function spawnClaude({ systemPrompt, userPrompt, cwd, maxTurns = 10, onEvent }) {
+// ---------- persistent tmux REPL trigger ----------
+// All agent stages talk to long-lived Claude Code REPLs that were booted by
+// factory/tmux/os26-sessions-up.sh. Each session is Opus 4.7 +
+// --dangerously-skip-permissions (bypass-permissions / auto mode). We trigger
+// tasks via factory/tmux/os26-trigger.sh which writes the prompt to /tmp,
+// `tmux send-keys` a 'Read the file ...' instruction, and polls capture-pane
+// for the UUID-scoped DONE_SENTINEL.
+//
+// Why tmux: send-keys writes to the pseudo-terminal directly — no macOS
+// System Events / TCC keystroke gate involved.
+
+const TRIGGER_SCRIPT = join(__dirname, 'tmux', 'os26-trigger.sh');
+
+function triggerRepl({ session, prompt, timeoutSec = 600, outputFile, onLog }) {
   return new Promise((resolveDone, reject) => {
-    const args = [
-      '-p', userPrompt,
-      '--append-system-prompt', systemPrompt,
-      '--output-format', 'stream-json',
-      '--verbose',
-      '--max-turns', String(maxTurns),
-      '--dangerously-skip-permissions',
-    ];
-    const env = { ...process.env, CLAUDE_CONFIG_DIR: CLAUDE_CFG };
-    const child = spawn(CLAUDE_BIN, args, { cwd: cwd || OS26_ROOT, stdio: ['ignore', 'pipe', 'pipe'], env });
-    let stdoutBuf = '';
-    let stderrBuf = '';
-    const events = [];
-    child.stdout.on('data', (chunk) => {
-      stdoutBuf += chunk.toString();
-      let nl;
-      while ((nl = stdoutBuf.indexOf('\n')) !== -1) {
-        const line = stdoutBuf.slice(0, nl).trim();
-        stdoutBuf = stdoutBuf.slice(nl + 1);
-        if (!line) continue;
-        try {
-          const ev = JSON.parse(line);
-          events.push(ev);
-          onEvent?.(ev);
-        } catch {}
-      }
+    const args = [session, prompt, String(timeoutSec)];
+    if (outputFile) args.push(outputFile);
+    const child = spawn(TRIGGER_SCRIPT, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (c) => {
+      const s = c.toString();
+      stdout += s;
+      if (onLog) s.split('\n').filter(Boolean).forEach(onLog);
     });
-    child.stderr.on('data', (chunk) => { stderrBuf += chunk.toString(); });
+    child.stderr.on('data', (c) => { stderr += c.toString(); });
     child.on('close', (code) => {
-      resolveDone({ ok: code === 0, code, events, stderr: stderrBuf.slice(-2000) });
+      if (code === 0) resolveDone({ ok: true, stdout, stderr });
+      else resolveDone({ ok: false, code, stdout, stderr });
     });
     child.on('error', reject);
   });
-}
-
-function extractFinalAssistantText(events) {
-  const out = [];
-  for (const ev of events) {
-    if (ev.type === 'assistant' && ev.message?.content) {
-      for (const block of ev.message.content) {
-        if (block.type === 'text') out.push(block.text);
-      }
-    }
-  }
-  return out.join('\n');
 }
 
 function extractMarkedJson(text, startMarker, endMarker) {
@@ -124,45 +108,54 @@ function extractMarkedJson(text, startMarker, endMarker) {
   try { return JSON.parse(raw); } catch { return null; }
 }
 
-function teeToolUseEvents(events, agentStage, emit, bastion, runId) {
-  for (const ev of events) {
-    if (ev.type === 'assistant' && ev.message?.content) {
-      for (const block of ev.message.content) {
-        if (block.type === 'tool_use') {
-          const summary = `${block.name}(${JSON.stringify(block.input).slice(0, 100)}…)`;
-          emit('event', { stage: agentStage, tool: block.name, summary, input: block.input });
-          bastion.ingest({ runId, stage: agentStage, tool: block.name, input: block.input, summary });
-        }
-      }
-    }
-  }
+// ---------- stages ----------
+async function runStageRepl({ session, prompt, outputFile, stage, runId, emit, bastion, timeoutSec = 600 }) {
+  await emit('event', { stage, tool: 'tmux-trigger', summary: `dispatching to ${session}` });
+  const { ok, stdout, stderr, code } = await triggerRepl({
+    session, prompt, timeoutSec, outputFile,
+    onLog: (l) => emit('event', { stage, tool: 'pane', summary: l.replace(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\s*/, '').slice(0, 240) }),
+  });
+  if (!ok) throw new Error(`${session} REPL exit ${code}: ${(stderr || stdout).slice(-300)}`);
+  // os26-trigger.sh writes the captured pane (anchor → sentinel) to outputFile
+  const raw = outputFile ? await readFile(outputFile, 'utf-8').catch(() => '') : stdout;
+  return raw;
 }
 
-// ---------- stages ----------
 async function runResearch({ customer, url, runDir, runId, emit, bastion }) {
   const t0 = Date.now();
-  await emit('event', { stage: 'research', tool: 'spawn', summary: `Research agent: classifying ${customer}` });
-  const systemPrompt = await readFile(join(PROMPTS_DIR, 'research.md'), 'utf-8');
-  const userPrompt = `PROSPECT: ${customer}${url ? ` (URL hint: ${url})` : ''}\n\nUse WebSearch + WebFetch (no LinkedIn auth required). Run ~10 searches: prospect's name + company, the company's industry, the company's compliance regime (SOC2, ISO 42001, HIPAA, etc.). Pick segment based on PERSON role + COMPANY field + COMPLIANCES.\n\nEmit the OS26_FACTS_START / OS26_FACTS_END JSON block. No file writes — just print the JSON.`;
-  const { ok, code, events, stderr } = await spawnClaude({
-    systemPrompt, userPrompt, cwd: runDir, maxTurns: 15,
-    onEvent: () => {},
+  const userPrompt = [
+    `PROSPECT: ${customer}${url ? ` (URL hint: ${url})` : ''}`,
+    '',
+    `Use WebSearch + WebFetch. Run ~10 web searches to figure out:`,
+    `  1. Who is this person? (LinkedIn search, news, company About)`,
+    `  2. What's their role / title? (CTO, CISO, MGA underwriter, etc.)`,
+    `  3. What company do they work at, and what's that company's field?`,
+    `  4. What compliances does that company deal with? (SOC2, ISO 42001, HIPAA, EU AI Act, Quebec Law 25, NAIC, FCA, OSFI, etc.)`,
+    `  5. Pick segment based on PERSON role + COMPANY field + COMPLIANCES.`,
+    '',
+    `Emit the OS26_FACTS_START / OS26_FACTS_END JSON block per your system prompt.`,
+  ].join('\n');
+  const outputFile = join(runDir, 'research.out');
+  const raw = await runStageRepl({
+    session: 'os26-research', prompt: userPrompt, outputFile,
+    stage: 'research', runId, emit, bastion, timeoutSec: 480,
   });
-  teeToolUseEvents(events, 'research', emit, bastion, runId);
-  if (!ok) throw new Error(`research subprocess exit ${code}: ${stderr.slice(0, 300)}`);
-  const text = extractFinalAssistantText(events);
-  const facts = extractMarkedJson(text, 'OS26_FACTS_START', 'OS26_FACTS_END');
-  if (!facts) throw new Error(`research: missing OS26_FACTS block; tail of text:\n${text.slice(-400)}`);
-  await emit('event', { stage: 'research', tool: 'classify', summary: `segment=${facts.segment} (conf ${facts.segment_confidence}) — ${facts.facts?.brand_name || facts.company_facts?.brand_name || facts.prospect_company}`, input: { segment: facts.segment, confidence: facts.segment_confidence } });
+  const facts = extractMarkedJson(raw, 'OS26_FACTS_START', 'OS26_FACTS_END');
+  if (!facts) throw new Error(`research: missing OS26_FACTS block; tail:\n${raw.slice(-400)}`);
+  await emit('event', {
+    stage: 'research', tool: 'classify',
+    summary: `segment=${facts.segment} (conf ${facts.segment_confidence}) — ${facts.facts?.brand_name || facts.company_facts?.brand_name || facts.prospect_company}`,
+    input: { segment: facts.segment, confidence: facts.segment_confidence },
+  });
   await writeFile(join(runDir, 'research.json'), JSON.stringify(facts, null, 2));
+  bastion.ingest({ runId, stage: 'research', tool: 'classify', input: { segment: facts.segment }, summary: 'research complete' });
   console.log(`[research] ${(Date.now() - t0) / 1000}s → segment=${facts.segment}`);
   return facts;
 }
 
 async function runFrontend({ facts, segment, runDir, runId, emit, bastion }) {
   const t0 = Date.now();
-  await emit('event', { stage: 'frontend', tool: 'spawn', summary: `Frontend agent: customising staging-site/sites/${segment}/` });
-  const systemPrompt = await readFile(join(PROMPTS_DIR, 'frontend.md'), 'utf-8');
+  const brand = facts.facts?.brand_name || facts.company_facts?.brand_name || facts.prospect_company || facts.customer_name;
   const userPrompt = [
     `SEGMENT: ${segment}`,
     `RUN_ID: ${runId}`,
@@ -170,35 +163,23 @@ async function runFrontend({ facts, segment, runDir, runId, emit, bastion }) {
     JSON.stringify(facts, null, 2),
     '',
     `Your working directory is ${STAGING_SITE_DIR}.`,
-    `Edit ./public/customer.json so it has:`,
-    `  default_segment: "${segment}"`,
-    `  brand_name: "${facts.facts?.brand_name || facts.company_facts?.brand_name || facts.prospect_company || facts.customer_name}"`,
-    `  proprietary_hook: (from facts.proprietary_hook)`,
-    `  primary_color: (from facts.facts.primary_color or company_facts.primary_color, default "#60a5fa")`,
-    `  factory_run_id: "${runId}"`,
-    `  generated_at: (now in ISO8601)`,
-    '',
-    `Then optionally tweak sites/${segment}/src/App.jsx hero copy to mention the prospect's brand name. Keep edits surgical — don't rename components, don't change imports.`,
-    '',
-    `Finally, git add + commit + push with gh CLI:`,
-    `  git add public/customer.json sites/${segment}/`,
-    `  git commit -m "OS26 demo for \${brand_name} (\${segment})"`,
-    `  git push origin main`,
-    '',
-    `Vercel auto-deploys staging.demo.pistonsolutions.ai on push.`,
-    '',
-    `When complete, emit the OS26_FRONTEND_START / OS26_FRONTEND_END JSON block with the files you edited and the git commit SHA.`,
+    `1. Edit ./public/customer.json with: default_segment="${segment}", brand_name="${brand}", proprietary_hook (from facts), primary_color (from facts, default "#60a5fa"), factory_run_id="${runId}", generated_at=ISO8601-now`,
+    `2. Optionally tweak sites/${segment}/src/App.jsx hero text. Surgical only — no component renames, no new imports.`,
+    `3. git add → commit → push:`,
+    `     git add public/customer.json sites/${segment}/`,
+    `     git commit -m "OS26 demo for ${brand} (${segment})"`,
+    `     git push origin main`,
+    `     git rev-parse HEAD`,
+    `4. Emit OS26_FRONTEND_START / OS26_FRONTEND_END with files_edited + commit_sha.`,
   ].join('\n');
-  const { ok, code, events, stderr } = await spawnClaude({
-    systemPrompt, userPrompt, cwd: STAGING_SITE_DIR, maxTurns: 25,
-    onEvent: () => {},
+  const outputFile = join(runDir, 'frontend.out');
+  const raw = await runStageRepl({
+    session: 'os26-frontend', prompt: userPrompt, outputFile,
+    stage: 'frontend', runId, emit, bastion, timeoutSec: 600,
   });
-  teeToolUseEvents(events, 'frontend', emit, bastion, runId);
-  if (!ok) throw new Error(`frontend subprocess exit ${code}: ${stderr.slice(0, 300)}`);
-  const text = extractFinalAssistantText(events);
-  const report = extractMarkedJson(text, 'OS26_FRONTEND_START', 'OS26_FRONTEND_END')
+  const report = extractMarkedJson(raw, 'OS26_FRONTEND_START', 'OS26_FRONTEND_END')
     || { files_edited: [], commit_sha: null };
-  await emit('event', { stage: 'frontend', tool: 'git push', summary: `pushed commit ${report.commit_sha?.slice(0, 7) || '(unknown)'}` });
+  await emit('event', { stage: 'frontend', tool: 'git push', summary: `pushed commit ${report.commit_sha?.slice(0, 7) || '(unknown)'}`, input: report });
   console.log(`[frontend] ${(Date.now() - t0) / 1000}s · commit=${report.commit_sha?.slice(0, 7)}`);
   return report;
 }
@@ -215,30 +196,30 @@ async function runDeploy({ frontendReport, emit, bastion, runId }) {
 
 async function runPR({ stagingUrl, facts, segment, runDir, runId, emit, bastion }) {
   const t0 = Date.now();
-  await emit('event', { stage: 'pr', tool: 'spawn', summary: `PR agent: screenshotting + reviewing ${stagingUrl}` });
-  const systemPrompt = await readFile(join(PROMPTS_DIR, 'pr.md'), 'utf-8');
   const userPrompt = [
     `STAGING_URL: ${stagingUrl}`,
     `SEGMENT: ${segment}`,
     `FACTS_JSON:`,
     JSON.stringify(facts, null, 2),
     '',
-    `1. WebFetch the staging URL. Verify it loaded the personalized hero for the prospect.`,
-    `2. WebFetch /\${segment}/ on the same host to verify the segment route.`,
-    `3. (Optional) Use Bash + curl + the chromium headless if you can, to capture a screenshot to ${runDir}/screenshot.png. If headless chromium isn't available, skip and rely on the HTML inspection.`,
-    `4. Emit OS26_PR_START / OS26_PR_END with { "verdict": "APPROVED" | "SEND_BACK", "reasoning": "...", "screenshot_path": "..." | null }.`,
+    `1. WebFetch ${stagingUrl}/ — confirm 200, shell HTML present.`,
+    `2. WebFetch ${stagingUrl}/customer.json — verify brand_name, default_segment, proprietary_hook match facts.`,
+    `3. WebFetch ${stagingUrl}/${segment}/ — verify the segment-specific page returns 200 and shows brand.`,
+    `4. (Optional) try \`which chromium\` / \`which google-chrome\` / \`npx puppeteer-core\`; if available, screenshot to ${runDir}/screenshot.png. Otherwise skip.`,
+    `5. Emit OS26_PR_START / OS26_PR_END with { verdict, reasoning, screenshot_path, checks }.`,
   ].join('\n');
-  const { ok, code, events, stderr } = await spawnClaude({
-    systemPrompt, userPrompt, cwd: runDir, maxTurns: 10,
-    onEvent: () => {},
-  });
-  teeToolUseEvents(events, 'pr', emit, bastion, runId);
-  if (!ok) {
-    await emit('event', { stage: 'pr', tool: 'spawn', summary: `PR subprocess errored: ${stderr.slice(0, 200)}`, flagged: false });
+  const outputFile = join(runDir, 'pr.out');
+  let raw = '';
+  try {
+    raw = await runStageRepl({
+      session: 'os26-review', prompt: userPrompt, outputFile,
+      stage: 'pr', runId, emit, bastion, timeoutSec: 300,
+    });
+  } catch (e) {
+    await emit('event', { stage: 'pr', tool: 'pane', summary: `PR REPL errored: ${e.message.slice(0, 200)}` });
     return { verdict: 'APPROVED', reasoning: 'pr stage errored, defaulting to ship' };
   }
-  const text = extractFinalAssistantText(events);
-  const review = extractMarkedJson(text, 'OS26_PR_START', 'OS26_PR_END') || { verdict: 'APPROVED', reasoning: 'no review block, defaulting' };
+  const review = extractMarkedJson(raw, 'OS26_PR_START', 'OS26_PR_END') || { verdict: 'APPROVED', reasoning: 'no review block, defaulting' };
   await emit('event', { stage: 'pr', tool: 'verdict', summary: `${review.verdict}: ${(review.reasoning || '').slice(0, 200)}`, input: review });
   await emit('verdict', review);
   console.log(`[pr] ${(Date.now() - t0) / 1000}s → ${review.verdict}`);
