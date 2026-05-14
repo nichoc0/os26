@@ -44,13 +44,12 @@ fi
 
 # Three sessions, each with its system prompt pre-loaded.
 # (macOS ships bash 3.2 — no associative arrays. Use a function lookup instead.)
-SESSIONS="os26-research os26-frontend os26-review"
+SESSIONS="os26-research os26-frontend"
 
 prompt_path_for() {
   case "$1" in
     os26-research) echo "$CWD/factory/agents/research.md" ;;
     os26-frontend) echo "$CWD/factory/agents/frontend.md" ;;
-    os26-review)   echo "$CWD/factory/agents/pr.md" ;;
     *) echo "" ;;
   esac
 }
@@ -83,7 +82,14 @@ start_session() {
     echo "  WARN: $SYSTEM_PROMPT not found — session will run without role prompt"
   fi
   # Width 1500 prevents JSON wrapping in captured pane output.
+  # `-e CLAUDE_CONFIG_DIR=...` is CRITICAL: the tmux server's env is captured at
+  # daemon start, so plain `export` in this script doesn't reach new sessions.
+  # The propickz tmux server was started with CLAUDE_CONFIG_DIR pointing at
+  # ~/.claude-propickz (gmail/100% used). Passing -e here overrides per-session
+  # so the OS26 REPLs are guaranteed to use ~/.claude-os26 (outlook/has quota).
   tmux new-session -d -s "$SESSION" -x 1500 -y 60 -c "$CWD" \
+    -e "CLAUDE_CONFIG_DIR=$CLAUDE_CONFIG_DIR" \
+    -e "HOME=$HOME" \
     "$CLAUDE $CLAUDE_ARGS"
 
   # Auto-dismiss the "trust this folder" modal that fires on first run.
@@ -142,7 +148,6 @@ fi
 
 echo "all sessions ready"
 echo "  attach research: tmux attach -t os26-research"
-echo "  attach adapt:    tmux attach -t os26-adapt"
-echo "  attach review:   tmux attach -t os26-review"
+echo "  attach frontend: tmux attach -t os26-frontend"
 echo "  trigger:         factory/tmux/os26-trigger.sh os26-research 'your task here'"
 echo "  stop:            factory/tmux/os26-sessions-down.sh"

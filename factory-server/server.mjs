@@ -44,22 +44,25 @@ let runQueue = Promise.resolve();
 app.get('/healthz', (req, res) => res.json({ ok: true, runs: runs.size }));
 
 app.post('/run', async (req, res) => {
-  const { customer, url } = req.body || {};
+  const { customer, company, url, segment } = req.body || {};
   if (!customer || typeof customer !== 'string' || customer.trim().length === 0) {
     return res.status(400).json({ error: 'customer is required' });
   }
+  const companyClean = (typeof company === 'string' && company.trim()) ? company.trim() : null;
+  const segmentClean = ['dev', 'insurance', 'compliance'].includes(segment) ? segment : null;
   const runId = `r${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
   const dir = join(RUNS_DIR, runId);
   await mkdir(dir, { recursive: true });
   const eventsFile = join(dir, 'events.jsonl');
   // Seed an opening event so the SSE has something to send immediately
-  await appendFile(eventsFile, JSON.stringify({ type: 'event', data: { stage: 'start', tool: 'orchestrator', summary: `factory run begin for ${customer}` } }) + '\n');
+  const summary = companyClean ? `factory run begin for ${customer} @ ${companyClean}` : `factory run begin for ${customer}`;
+  await appendFile(eventsFile, JSON.stringify({ type: 'event', data: { stage: 'start', tool: 'orchestrator', summary } }) + '\n');
 
-  runs.set(runId, { status: 'queued', eventsFile, customer, url, startedAt: Date.now() });
+  runs.set(runId, { status: 'queued', eventsFile, customer, company: companyClean, segment: segmentClean, url, startedAt: Date.now() });
   res.status(202).json({ runId });
 
   // Queue strictly; warm REPLs can only handle one task at a time per session.
-  runQueue = runQueue.then(() => executeRun(runId, customer, url, eventsFile)).catch((e) => {
+  runQueue = runQueue.then(() => executeRun(runId, customer, companyClean, segmentClean, url, eventsFile)).catch((e) => {
     console.error(`[run ${runId}] failed`, e);
   });
 });
@@ -123,11 +126,13 @@ app.get('/run/:runId/events', async (req, res) => {
   req.on('close', () => { closed = true; clearInterval(interval); });
 });
 
-async function executeRun(runId, customer, url, eventsFile) {
-  console.log(`[run ${runId}] starting (customer="${customer}")`);
+async function executeRun(runId, customer, company, segment, url, eventsFile) {
+  console.log(`[run ${runId}] starting (customer="${customer}"${company ? ` @ "${company}"` : ''}${segment ? ` segment=${segment}` : ''})`);
   runs.get(runId).status = 'running';
 
   const args = ['--customer', customer];
+  if (company) args.push('--company', company);
+  if (segment) args.push('--segment', segment);
   if (url) args.push('--url', url);
   args.push('--run-id', runId);
   args.push('--events-file', eventsFile);

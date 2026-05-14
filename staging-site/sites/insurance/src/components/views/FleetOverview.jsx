@@ -147,7 +147,7 @@ export function FleetOverview({ data, setCurrentView, onInspect, reportData }) {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-widest">{isDev ? 'Posture Trend (14d)' : 'Risk Score Trend (14d)'}</h3>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">{isDev ? 'Fleet posture improving since Bastion deployment' : 'Fleet risk decline since Bastion deployment'}</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">{isDev ? 'Insured-system posture improving since Bastion assessment' : 'Insured-system risk decline since Bastion assessment'}</p>
             </div>
             {!isDev && (
               <button onClick={() => setCurrentView('risk')} className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold cursor-pointer bg-transparent border-none">Risk Details &rarr;</button>
@@ -223,7 +223,7 @@ export function FleetOverview({ data, setCurrentView, onInspect, reportData }) {
         reportData={reportData}
         setCurrentView={setCurrentView}
         title="Risk Score — Component Breakdown"
-        subtitle="What's driving your fleet posture right now. Click any row to inspect the underlying events."
+        subtitle="What's driving the insured system's risk right now. Click any row to inspect the underlying events."
       />
 
       {/* Action Required — Alert Queue */}
@@ -286,11 +286,11 @@ export function FleetOverview({ data, setCurrentView, onInspect, reportData }) {
         </div>
       )}
 
-      {/* Section: Agent Fleet */}
+      {/* Section: Insured Systems */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Agent Fleet</h2>
-          <button onClick={() => setCurrentView('agents')} className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold cursor-pointer bg-transparent border-none">View All Agents &rarr;</button>
+          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Insured Systems</h2>
+          <button onClick={() => setCurrentView('fleet')} className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold cursor-pointer bg-transparent border-none">View All Insureds &rarr;</button>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {sortedAgents.map((agent) => {

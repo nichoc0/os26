@@ -350,17 +350,7 @@ export default function App() {
 
   return (
     <DemoGate><ProductionGate>
-      {/* Tiny SDK-version banner — surfaces the latest published CLI version
-          so customers on stale local installs know to upgrade. */}
-      <div className="fixed top-0 inset-x-0 z-50 bg-slate-900 text-slate-300 text-[10px] font-mono leading-none px-3 py-1 flex justify-center items-center gap-2 pointer-events-none">
-        <span className="opacity-60">latest SDK:</span>
-        <span className="text-blue-400 font-bold">@pistonsolutions/bastion@0.4.14</span>
-        <span className="opacity-40">·</span>
-        <span className="text-blue-400 font-bold">bastion-red==0.4.14</span>
-        <span className="opacity-40">·</span>
-        <a href="/docs" className="text-blue-400 hover:underline pointer-events-auto opacity-80 hover:opacity-100">docs →</a>
-      </div>
-      <div className="min-h-screen font-sans bg-slate-50 dark:bg-[#0B1120] text-slate-800 dark:text-slate-300 flex transition-colors duration-300 tech-grid pt-5">
+      <div className="min-h-screen font-sans bg-slate-50 dark:bg-[#0B1120] text-slate-800 dark:text-slate-300 flex transition-colors duration-300 tech-grid">
         <SideNav currentView={currentView} setCurrentView={setCurrentView} />
 
         <main className="flex-1 sm:ml-[220px] h-screen overflow-y-auto overflow-x-hidden flex flex-col pb-16 sm:pb-0 relative z-10">

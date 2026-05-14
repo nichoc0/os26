@@ -21,10 +21,10 @@ import ExportMenu from './ExportMenu';
 //   Posture Report  — produce the attestation a regulator / underwriter signs
 //   Settings        — configure my Bastion deployment
 const primaryItems = [
-    { id: 'overview',      label: 'Overview',       icon: Pulse },
-    { id: 'voice-testing', label: 'Test',           icon: Phone },
-    { id: 'fleet',         label: 'Agents',         icon: Robot },
-    { id: 'reports',       label: 'Posture Report', icon: ShieldCheck },
+    { id: 'overview',      label: 'Portfolio',      icon: Pulse },
+    { id: 'voice-testing', label: 'Assess System', icon: Phone },
+    { id: 'fleet',         label: 'Insureds',       icon: Robot },
+    { id: 'reports',       label: 'Risk Brief',     icon: ShieldCheck },
     { id: 'config',        label: 'Settings',       icon: GearSix },
 ];
 

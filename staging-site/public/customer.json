@@ -1,8 +1,9 @@
 {
-  "default_segment": "dev",
-  "brand_name": "Bastion",
-  "proprietary_hook": "",
+  "default_segment": "compliance",
+  "brand_name": "Hippocratic AI",
+  "logo_url": "https://hippocraticai.com/wp-content/uploads/2025/09/logo-5.png",
+  "proprietary_hook": "On https://www.prnewswire.com/news-releases/hippocratic-ai-launches-polaris-5-0-... Munjal said: 'With Polaris 5.0 we are introducing the first evidence-based AI model for healthcare, tested by clinicians, built on more than 180 million real-world patient interactions and benchmarked against leading frontier voice capable models.' The demo hero should echo '180 million patient interactions' and reframe Bastion as the cryptographically signed runtime layer that proves the 0.00% severe-harm claim per-call, not per-audit-cycle.",
   "primary_color": "#60a5fa",
-  "generated_at": "1970-01-01T00:00:00Z",
-  "factory_run_id": ""
+  "factory_run_id": "rmp5sxnag-ebfaeff8",
+  "generated_at": "2026-05-14T00:00:00Z"
 }

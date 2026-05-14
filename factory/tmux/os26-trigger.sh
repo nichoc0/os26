@@ -26,7 +26,9 @@ UUID=$(uuidgen | tr '[:upper:]' '[:lower:]')
 PROMPT_FILE="/tmp/os26-task-${UUID}.txt"
 DONE_SENTINEL="OS26_TASK_DONE_${UUID}"
 
-SPINNER_PATTERNS='Running|esc to interrupt|Cogitating|Synthesizing|Pondering|Marinating|Brewing|Hatching|Frolicking|Sautéed|Crunched|Baked|Brewed|Thinking|Investigating'
+# No spinner-pattern second-guessing. The UUID-scoped DONE_SENTINEL is the
+# authoritative signal that Claude has finished the task — when it appears in
+# the pane, treat the task as complete. Period.
 MODAL_PATTERNS='Do you want to proceed|to confirm|amend'
 
 if ! tmux has-session -t "$SESSION" 2>/dev/null; then
@@ -80,10 +82,8 @@ while [ $POLL -lt $MAX_POLLS ]; do
   fi
 
   if echo "$POST_ANCHOR" | grep -qF "$DONE_SENTINEL"; then
-    if ! echo "$POST_ANCHOR" | tail -8 | grep -qE "$SPINNER_PATTERNS"; then
-      COMPLETED=1
-      break
-    fi
+    COMPLETED=1
+    break
   fi
 
   if [ $((POLL % 10)) -eq 0 ]; then

@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { MagnifyingGlass, ShieldCheck, CaretDown, DownloadSimple, Sparkle, Eye, ShieldCheckered, Key, X, Copy, CheckCircle } from '@phosphor-icons/react';
-import { OrganizationSwitcher, UserButton } from '@clerk/clerk-react';
+import { UserButton } from '@clerk/clerk-react';
+import CustomerOrgBadge from './CustomerOrgBadge';
 import { useModeStore, countSuppressedBlocks } from '../../store/modeStore';
 import { useIsDev } from '../../store/audienceStore';
 import EnforcementOnboardingModal from '../common/EnforcementOnboardingModal';
@@ -278,18 +279,8 @@ export function TopBar({ onSearch, setCurrentView, onOpenChangelog, events = [] 
                     </button>
                 )}
 
-                {/* Org + account switcher. Mirrors the bastion.pistonsolutions.ai
-                    TopBar so the demo tells the same multi-tenant story: which
-                    organization you're attesting under, which Clerk user is
-                    logged in. The Clerk gate (DemoGate) guarantees a session
-                    exists, so these always have data to render. */}
                 <div className="hidden sm:block">
-                    <OrganizationSwitcher
-                        hidePersonal
-                        afterCreateOrganizationUrl="/"
-                        afterSelectOrganizationUrl="/"
-                        appearance={{ elements: { rootBox: 'flex items-center', organizationSwitcherTrigger: 'px-2 py-1 border border-slate-300 dark:border-slate-700 rounded-none hover:border-blue-500' } }}
-                    />
+                    <CustomerOrgBadge />
                 </div>
                 <UserButton
                     afterSignOutUrl="/"

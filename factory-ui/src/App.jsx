@@ -8,11 +8,9 @@ import {
 const API_BASE = (import.meta.env.VITE_FACTORY_API_URL || 'http://localhost:7700').replace(/\/+$/, '');
 
 const AGENTS = [
-  { id: 'research', label: 'Research',   icon: Globe,       desc: '~10 web searches · classifies prospect into dev/insurance/compliance' },
-  { id: 'frontend', label: 'Frontend',   icon: Robot,       desc: 'Edits site source · git commit · gh push origin main' },
-  { id: 'deploy',   label: 'Deploy',     icon: GithubLogo,  desc: 'Vercel auto-builds on push → staging.demo.pistonsolutions.ai' },
-  { id: 'pr',       label: 'PR Review',  icon: ShieldCheck, desc: 'WebFetch + screenshot · approves or sends back' },
-  { id: 'notify',   label: 'Notify',     icon: Phone,       desc: 'SMS via Telnyx with prospect-specific greeting' },
+  { id: 'research', label: 'Research',   icon: Globe, desc: '~10 web searches · classifies prospect into dev/insurance/compliance · pulls brand + logo' },
+  { id: 'frontend', label: 'Frontend',   icon: Robot, desc: 'Picks segment · writes customer.json · adapts seed data · vercel --prod · self-QA' },
+  { id: 'notify',   label: 'Notify',     icon: Phone, desc: 'SMS via Telnyx with the staging URL' },
 ];
 
 const STATUS_STYLES = {
@@ -99,7 +97,7 @@ function OutputBlock({ title, content, icon: Icon }) {
 }
 
 /**
- * PipelineGraph — vertical 5-node flow chart. Each node = a Factory agent.
+ * PipelineGraph — vertical 3-node flow chart. Each node = a Factory agent.
  * Status drives visuals: idle (dim outline), running (pulsing ring + animated
  * dot flowing along incoming edge), done (filled green check), failed (red X).
  * The edge between two nodes animates a traveling dot whenever the upstream
@@ -203,17 +201,18 @@ function PipelineGraph({ agents, agentStates }) {
 
 export default function App() {
   const [customer, setCustomer] = useState('');
+  const [company, setCompany] = useState('');
+  const [segment, setSegment] = useState('compliance'); // 'auto' | 'dev' | 'insurance' | 'compliance'
   const [running, setRunning] = useState(false);
   const [runId, setRunId] = useState(null);
   const [error, setError] = useState(null);
   const [stagingUrl, setStagingUrl] = useState(null);
-  const [verdict, setVerdict] = useState(null);
   const [allEvents, setAllEvents] = useState([]); // for the timeline
   const [agentStates, setAgentStates] = useState(() =>
     Object.fromEntries(AGENTS.map((a) => [a.id, { status: 'idle', lastSummary: null, events: [], startedAt: null, elapsedMs: null }]))
   );
   const [expanded, setExpanded] = useState({});
-  const [outputs, setOutputs] = useState({ research: null, frontend: null, pr: null });
+  const [outputs, setOutputs] = useState({ research: null, frontend: null });
 
   // Poll factory-server health.
   const [backendUp, setBackendUp] = useState(null);
@@ -232,9 +231,9 @@ export default function App() {
 
   const fire = async () => {
     if (!customer.trim() || running) return;
-    setRunning(true); setError(null); setStagingUrl(null); setVerdict(null);
+    setRunning(true); setError(null); setStagingUrl(null);
     setAllEvents([]);
-    setOutputs({ research: null, frontend: null, pr: null });
+    setOutputs({ research: null, frontend: null });
     setAgentStates(Object.fromEntries(AGENTS.map((a) => [a.id, { status: 'idle', lastSummary: null, events: [], startedAt: null, elapsedMs: null }])));
     setExpanded({ research: true });
 
@@ -243,7 +242,11 @@ export default function App() {
       resp = await fetch(`${API_BASE}/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customer: customer.trim() }),
+        body: JSON.stringify({
+          customer: customer.trim(),
+          company: company.trim() || undefined,
+          segment: segment !== 'auto' ? segment : undefined,
+        }),
       });
     } catch (e) { setError(`Backend unreachable: ${e.message}`); setRunning(false); return; }
     if (!resp.ok) { setError(`HTTP ${resp.status} from /run`); setRunning(false); return; }
@@ -284,17 +287,11 @@ export default function App() {
           if (e.stage === 'research' && e.tool === 'classify') {
             setOutputs((o) => ({ ...o, research: JSON.stringify(e.input, null, 2) }));
           }
-          if (e.stage === 'frontend' && e.tool === 'git push') {
+          if (e.stage === 'frontend' && e.tool === 'vercel') {
             setOutputs((o) => ({ ...o, frontend: JSON.stringify(e.input, null, 2) }));
-          }
-          if (e.stage === 'pr' && e.tool === 'verdict') {
-            setOutputs((o) => ({ ...o, pr: JSON.stringify(e.input, null, 2) }));
           }
         } else if (ev.type === 'staging_url') {
           setStagingUrl(ev.data.url);
-        } else if (ev.type === 'verdict') {
-          setVerdict(ev.data);
-          setAgentStates((p) => ({ ...p, pr: { ...p.pr, status: ev.data.verdict === 'APPROVED' ? 'done' : 'failed', lastSummary: ev.data.reasoning } }));
         } else if (ev.type === 'done') {
           setRunning(false);
           setAgentStates((p) => {
@@ -337,18 +334,39 @@ export default function App() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Demo factory</h1>
           <p className="mt-1.5 text-[13px] text-slate-600 max-w-3xl leading-relaxed">
-            Drop a prospect's name (or LinkedIn URL). Five agents — Research, Frontend, Deploy, PR Review, Notify — coordinate to ship a personalized Bastion demo at <code className="font-mono text-blue-600 text-[12px]">staging.demo.pistonsolutions.ai</code> in under two minutes.
+            Drop a prospect's name and their company. Two agents — Research and Frontend — coordinate to ship a personalized Bastion demo at <code className="font-mono text-blue-600 text-[12px]">staging.demo.pistonsolutions.ai</code>, then SMS the URL.
           </p>
-          <div className="mt-4 flex items-stretch gap-3 max-w-2xl">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto_auto] items-stretch gap-3 max-w-3xl">
             <input
               type="text"
               value={customer}
               onChange={(e) => setCustomer(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && fire()}
-              placeholder="Abbas Rizvi   ·   or   https://www.linkedin.com/in/..."
+              placeholder="Name"
               disabled={running}
-              className="flex-1 bg-white border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="bg-white border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
+            <input
+              type="text"
+              value={company}
+              onChange={(e) => setCompany(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && fire()}
+              placeholder="Company"
+              disabled={running}
+              className="bg-white border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            />
+            <select
+              value={segment}
+              onChange={(e) => setSegment(e.target.value)}
+              disabled={running}
+              title="Override the segment the research agent would auto-classify"
+              className="bg-white border border-slate-300 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            >
+              <option value="auto">Segment: auto</option>
+              <option value="dev">/dev</option>
+              <option value="insurance">/insurance</option>
+              <option value="compliance">/compliance</option>
+            </select>
             <button
               onClick={fire}
               disabled={running || !customer.trim()}
@@ -373,7 +391,6 @@ export default function App() {
                     <a href={stagingUrl} target="_blank" rel="noopener" className="text-sm font-mono text-emerald-800 hover:underline truncate block">
                       {stagingUrl} <ArrowSquareOut size={11} weight="bold" className="inline ml-1" />
                     </a>
-                    {verdict && <div className="text-[11px] text-slate-600 mt-1"><span className="font-bold">{verdict.verdict}</span> · {verdict.reasoning}</div>}
                   </div>
                 </div>
               )}
@@ -423,10 +440,9 @@ export default function App() {
             <div className="space-y-3">
               {outputs.research && <OutputBlock title="Research findings" content={outputs.research} icon={Globe} />}
               {outputs.frontend && <OutputBlock title="Frontend agent report" content={outputs.frontend} icon={Code} />}
-              {outputs.pr && <OutputBlock title="PR review verdict" content={outputs.pr} icon={ShieldCheck} />}
-              {!outputs.research && !outputs.frontend && !outputs.pr && (
+              {!outputs.research && !outputs.frontend && (
                 <div className="border border-slate-200 bg-white text-[11px] text-slate-400 italic px-4 py-8 text-center">
-                  Agent outputs land here as the run progresses — research facts, edit diffs, PR verdicts.
+                  Agent outputs land here as the run progresses — research facts, deploy URL, self-QA result.
                 </div>
               )}
               {stagingUrl && (
