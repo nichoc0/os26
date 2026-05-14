@@ -1,0 +1,57 @@
+[
+  {
+    "id": "cgl",
+    "label": "CGL",
+    "longLabel": "Commercial General Liability",
+    "status": "green",
+    "signals": [
+      { "label": "Blocked physical-action calls", "value": "0 / 24h", "source_view": "telemetry", "tone": "good" },
+      { "label": "Safety-coordinator flags", "value": "1", "source_view": "drilldown", "tone": "neutral" },
+      { "label": "Tool authorization rate", "value": "100%", "source_view": "risk", "tone": "good" }
+    ]
+  },
+  {
+    "id": "product-liability",
+    "label": "Product Liability",
+    "longLabel": "Product Liability",
+    "status": "yellow",
+    "signals": [
+      { "label": "Defect-class incidents", "value": "2 / 14d", "source_view": "drilldown", "tone": "warn" },
+      { "label": "Tool-failure rate", "value": "0.4%", "source_view": "risk", "tone": "neutral" },
+      { "label": "Customer-facing flags", "value": "3", "source_view": "telemetry", "tone": "warn" }
+    ]
+  },
+  {
+    "id": "professional-indemnity",
+    "label": "PI / E&O",
+    "longLabel": "Professional Indemnity",
+    "status": "yellow",
+    "signals": [
+      { "label": "Hallucination rate (14d)", "value": "1.6%", "source_view": "risk", "tone": "warn" },
+      { "label": "Grounded-response rate", "value": "94.1%", "source_view": "risk", "tone": "neutral" },
+      { "label": "Advice-class flags", "value": "2", "source_view": "drilldown", "tone": "warn" }
+    ]
+  },
+  {
+    "id": "tech-eo",
+    "label": "Tech E&O",
+    "longLabel": "Technology Errors & Omissions",
+    "status": "green",
+    "signals": [
+      { "label": "SLA-breaking failures", "value": "0", "source_view": "telemetry", "tone": "good" },
+      { "label": "Tool error rate", "value": "0.2%", "source_view": "risk", "tone": "good" },
+      { "label": "System availability", "value": "99.97%", "source_view": "risk", "tone": "good" }
+    ]
+  },
+  {
+    "id": "cyber",
+    "label": "Cyber",
+    "longLabel": "Cyber Liability",
+    "status": "yellow",
+    "signals": [
+      { "label": "PII exposures", "value": "7", "source_view": "drilldown", "tone": "warn" },
+      { "label": "Blocked extraction attempts", "value": "2", "source_view": "telemetry", "tone": "good" },
+      { "label": "Prompt-injection findings", "value": "0 / 14d", "source_view": "report", "tone": "good" }
+    ]
+  }
+]

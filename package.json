@@ -1,0 +1,16 @@
+{
+  "name": "os26",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "OS26 Demo Factory — agentic pipeline that personalises Bastion demos per customer segment, deploys to staging, and SMS-notifies on completion.",
+  "scripts": {
+    "factory": "node factory/orchestrator.mjs",
+    "factory:dev": "node factory/orchestrator.mjs --customer 'Mila Ventures' --url https://mila.quebec",
+    "ui:dev": "cd ui && vite",
+    "ui:build": "cd ui && vite build"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  }
+}

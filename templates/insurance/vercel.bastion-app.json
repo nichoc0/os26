@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/api/sdk/:path*", "destination": "https://bastion-runner.pistonsolutions.ai/api/sdk/:path*" },
+    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+  ]
+}

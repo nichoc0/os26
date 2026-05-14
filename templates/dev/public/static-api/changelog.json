@@ -1,0 +1,49 @@
+[
+  {
+    "date": "2026-05-09",
+    "title": "Voice Testing Suite",
+    "items": [
+      "Live inbound voice red-teaming — point any Telnyx DID at the Bastion gateway and the assessment runner spawns adversarial probes against your production voice agent in real time",
+      "Bidirectional Media Streams pipeline (Deepgram nova-3 multilingual STT → Groq gpt-oss-120b reasoning → ElevenLabs streaming TTS) with carrier-grade μ-law @ 8 kHz framing and ConversationState-driven turn-taking for agent-vs-agent loops",
+      "Per-call rubric grading by Safeguard 20B at temperature 0; identity-before-PHI, sound-alike medication confirmation, and system-prompt-extraction probes ship in the default healthcare pack",
+      "Live Voice and Live WebSockets dashboard views surface every active call's frame counts, listeners, and transcript bus — tunable per-deploy via VITE_VOICE_GATEWAY_URL"
+    ]
+  },
+  {
+    "date": "2026-05-08",
+    "title": "Posture Report",
+    "items": [
+      "Executive-grade attestation document generated per assessment cycle — anchored on FDA PCCP (Dec 2024 final guidance), ISO 14971, and HIPAA Security Rule with an explicit excluded-frameworks table for NIST AI RMF, EU AI Act Art. 12, SOC 2 CC7.2, and SR 11-7",
+      "Section-by-section coverage of Description of Modifications, Modification Protocol, Impact Assessment, and Real-world performance monitoring — every claim ties back to a verifiable run id in the AdversarialResult corpus",
+      "Weekly probe cadence, violation-rate trend, and prior-period comparison rendered for the underwriter; 247 probes graded across 4 hazard categories this period",
+      "Locked visual contract: single typeface (Inter), monochrome article body, icons reserved to page chrome — print-clean for board and CISO review"
+    ]
+  },
+  {
+    "date": "2026-04-27",
+    "title": "Dashboard ROI Redesign",
+    "items": [
+      "Landing metrics now lead with Agents Tracked, Actions Monitored, PII Exposures, and Fleet Risk Score",
+      "Risk Score Trend chart promoted to the hero panel — see how risk has declined over the past 14 days",
+      "Insurance Coverage Map view added: CGL, Product Liability, D&O, Tech E&O, Cyber"
+    ]
+  },
+  {
+    "date": "2026-04-25",
+    "title": "Shadow vs Enforcement Toggle",
+    "items": [
+      "New mode toggle in the top bar — start in Shadow (monitoring only) and switch to Enforcement when ready",
+      "Each event now shows what Bastion would have done alongside what it did",
+      "Adversarial Assessment repositioned as an optional add-on; passive observation is the baseline"
+    ]
+  },
+  {
+    "date": "2026-04-22",
+    "title": "Decision Transparency",
+    "items": [
+      "Every flagged or blocked action now shows a plain-English explanation of which rule fired and why",
+      "Groundedness checks now expose the supporting and contradicting facts behind each verdict",
+      "Internal calculation logs available on every session for compliance review"
+    ]
+  }
+]

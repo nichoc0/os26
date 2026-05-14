@@ -1,0 +1,177 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+@variant dark (&:is(.dark *));
+
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --color-border: #e5e7eb;
+  --color-card: #fafafa;
+  --color-muted: #6b7280;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: #000000;
+  background-color: #ffffff;
+  line-height: 1.5;
+}
+
+.dark body {
+  color: #cbd5e1;
+  background-color: #0B1120;
+}
+
+::selection {
+  background-color: #000000;
+  color: #ffffff;
+}
+
+/* Scanline texture for technical panels */
+.scanline-bg {
+  background-image:
+    repeating-linear-gradient(0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.015) 2px,
+      rgba(0, 0, 0, 0.015) 4px);
+}
+
+/* Subtle grid overlay */
+.grid-overlay {
+  background-image:
+    linear-gradient(to right, rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* Hyper-technical grid for main background */
+.tech-grid {
+  background-size: 40px 40px;
+  background-image:
+    linear-gradient(to right, rgba(148, 163, 184, 0.1) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.1) 1px, transparent 1px);
+}
+
+.dark .tech-grid {
+  background-image:
+    linear-gradient(to right, rgba(15, 23, 42, 0.8) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.8) 1px, transparent 1px);
+}
+
+/* Animated pulse for status indicators */
+@keyframes pulse-dot {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* Counter-style number animation */
+@keyframes count-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.count-up {
+  animation: count-up 0.6s ease-out forwards;
+}
+
+/* Reveal animation */
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reveal {
+  animation: reveal 0.8s ease-out forwards;
+}
+
+/* Video play button hover */
+.play-ring {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.play-ring:hover {
+  transform: scale(1.08);
+  box-shadow: 0 0 0 8px rgba(0, 0, 0, 0.06);
+}
+
+/* Metric bar fill animation */
+@keyframes fill-bar {
+  from {
+    width: 0%;
+  }
+}
+
+.fill-bar {
+  animation: fill-bar 1.5s ease-out forwards;
+}
+
+/* ReactFlow dark mode overrides */
+.dark .react-flow__controls {
+  background: #0f172a;
+  border-color: #1e293b;
+}
+.dark .react-flow__controls button {
+  background: #0f172a;
+  border-color: #1e293b;
+  fill: #94a3b8;
+}
+.dark .react-flow__controls button:hover {
+  background: #1e293b;
+}
+.dark .react-flow__minimap {
+  background: #0f172a;
+}
+.dark .react-flow__attribution {
+  background: transparent;
+}
+
+/* Force Clerk components to use Inter */
+.cl-rootBox, .cl-card, .cl-formFieldInput, .cl-formButtonPrimary,
+.cl-headerTitle, .cl-formFieldLabel, .cl-footerAction,
+.cl-internal-b7wgs5, .cl-internal-1dauvt6, .cl-signIn-root,
+[data-clerk-component], [data-clerk-component] * {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+}
+
+/* Hide Clerk branding */
+.cl-internal-b7wgs5,
+.cl-footerPages,
+.cl-footer,
+[data-clerk-footer],
+.cl-internal-1dauvt6,
+div[class*="poweredBy"],
+a[href*="clerk.com"],
+.cl-internal-16vtwdp {
+  display: none !important;
+}

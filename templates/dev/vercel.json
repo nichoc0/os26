@@ -1,0 +1,18 @@
+{
+  "rewrites": [
+    { "source": "/api/runner/:path*", "destination": "https://bastion-runner.pistonsolutions.ai/:path*" },
+    { "source": "/api/policy/:path*", "destination": "https://bastion-policy.pistonsolutions.ai/api/policy/:path*" },
+    { "source": "/api/events/:id", "destination": "/static-api/events/:id.json" },
+    { "source": "/api/events", "destination": "/static-api/events.json" },
+    { "source": "/api/sessions/:id", "destination": "/static-api/sessions/:id.json" },
+    { "source": "/api/sessions", "destination": "/static-api/sessions.json" },
+    { "source": "/api/kg/triples", "destination": "/static-api/kg-triples.json" },
+    { "source": "/api/overview", "destination": "/static-api/overview.json" },
+    { "source": "/api/agents", "destination": "/static-api/agents.json" },
+    { "source": "/api/timeline", "destination": "/static-api/timeline.json" },
+    { "source": "/api/health", "destination": "/static-api/health.json" },
+    { "source": "/api/report", "destination": "/static-api/report.json" },
+    { "source": "/api/:path*", "destination": "https://bastion-runner.pistonsolutions.ai/api/:path*" },
+    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+  ]
+}

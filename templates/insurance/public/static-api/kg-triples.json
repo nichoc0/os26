@@ -1,0 +1,1167 @@
+{
+  "count": 129,
+  "namespace": "pharmacy",
+  "triples": [
+    {
+      "confidence": 1,
+      "h": "Agent:Sera",
+      "r": "has_persona",
+      "t": "Code:sera_intake_v1.4",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:Sera",
+      "r": "role",
+      "t": "Role:pharmacy_intake_voice_agent",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:Sera",
+      "r": "deployed_by",
+      "t": "Org:MapleRidgePharmacy",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:Sera",
+      "r": "governed_by",
+      "t": "Regulation:HIPAA",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:Sera",
+      "r": "governed_by",
+      "t": "Regulation:FDA_AI_ML_PCCP",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:Sera",
+      "r": "governed_by",
+      "t": "Standard:ISO_14971",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:Sera",
+      "r": "language",
+      "t": "Locale:en_US",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:Sera",
+      "r": "language",
+      "t": "Locale:fr_CA",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:Sera",
+      "r": "language",
+      "t": "Locale:es_US",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:PharmacistCallback",
+      "r": "role",
+      "t": "Role:clinical_callback",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:PharmacistCallback",
+      "r": "deployed_by",
+      "t": "Org:MapleRidgePharmacy",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:PharmacistCallback",
+      "r": "governed_by",
+      "t": "Regulation:HIPAA",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:RefillRouter",
+      "r": "role",
+      "t": "Role:refill_routing",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:RefillRouter",
+      "r": "deployed_by",
+      "t": "Org:MapleRidgePharmacy",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:RefillRouter",
+      "r": "governed_by",
+      "t": "Regulation:HIPAA",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:InsuranceSync",
+      "r": "role",
+      "t": "Role:payer_authorization",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:InsuranceSync",
+      "r": "deployed_by",
+      "t": "Org:MapleRidgePharmacy",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:InsuranceSync",
+      "r": "governed_by",
+      "t": "Regulation:HIPAA",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:TriageClassifier",
+      "r": "role",
+      "t": "Role:symptom_acuity_classifier",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:TriageClassifier",
+      "r": "deployed_by",
+      "t": "Org:MapleRidgePharmacy",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:TriageClassifier",
+      "r": "governed_by",
+      "t": "Regulation:HIPAA",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:ComplianceMonitor",
+      "r": "role",
+      "t": "Role:hipaa_oversight",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:ComplianceMonitor",
+      "r": "deployed_by",
+      "t": "Org:MapleRidgePharmacy",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:ComplianceMonitor",
+      "r": "governed_by",
+      "t": "Regulation:HIPAA",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:Sera",
+      "r": "escalates_to",
+      "t": "Agent:PharmacistCallback",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:Sera",
+      "r": "escalates_to",
+      "t": "Agent:TriageClassifier",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:Sera",
+      "r": "hands_off_to",
+      "t": "Agent:RefillRouter",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:Sera",
+      "r": "hands_off_to",
+      "t": "Agent:InsuranceSync",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:ComplianceMonitor",
+      "r": "monitors",
+      "t": "Agent:Sera",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:ComplianceMonitor",
+      "r": "monitors",
+      "t": "Agent:PharmacistCallback",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:ComplianceMonitor",
+      "r": "monitors",
+      "t": "Agent:InsuranceSync",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Tool:check_rx_history",
+      "r": "queries",
+      "t": "System:RxRecord",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Tool:queue_for_fill",
+      "r": "writes_to",
+      "t": "System:RxRecord",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Tool:prior_auth_status",
+      "r": "queries",
+      "t": "System:PayerAPI",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Tool:check_formulary",
+      "r": "queries",
+      "t": "System:PayerAPI",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Tool:check_copay",
+      "r": "queries",
+      "t": "System:PayerAPI",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Tool:verify_insurance",
+      "r": "queries",
+      "t": "System:PayerAPI",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Tool:draft_prior_auth",
+      "r": "writes_to",
+      "t": "System:PayerAPI",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Tool:flag_for_assistance",
+      "r": "writes_to",
+      "t": "System:RxRecord",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Tool:drug_interaction_check",
+      "r": "queries",
+      "t": "System:FormularyDB",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Tool:read_prescription_doc",
+      "r": "queries",
+      "t": "System:RxRecord",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Tool:extract_fields",
+      "r": "queries",
+      "t": "System:RxRecord",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Tool:verify_dosage",
+      "r": "queries",
+      "t": "System:FormularyDB",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Tool:log_clinical_advice",
+      "r": "writes_to",
+      "t": "System:RxRecord",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Tool:classify_acuity",
+      "r": "queries",
+      "t": "System:TriageRubric",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Tool:escalate_to_pharmacist",
+      "r": "writes_to",
+      "t": "System:CallQueue",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Tool:recommend_otc",
+      "r": "writes_to",
+      "t": "System:CallQueue",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Tool:verify_allergy_list",
+      "r": "queries",
+      "t": "System:RxRecord",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Tool:generate_hipaa_log",
+      "r": "writes_to",
+      "t": "System:ComplianceArchive",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Tool:audit_trail_query",
+      "r": "queries",
+      "t": "System:ComplianceArchive",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Tool:flag_overdue_review",
+      "r": "writes_to",
+      "t": "System:ComplianceArchive",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Tool:dispense_controlled_substance",
+      "r": "writes_to",
+      "t": "System:RxRecord",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Tool:disable_control",
+      "r": "writes_to",
+      "t": "System:Policy",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Tool:schedule_pharmacist_callback",
+      "r": "writes_to",
+      "t": "System:CallQueue",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:Sera",
+      "r": "uses",
+      "t": "Tool:check_rx_history",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:Sera",
+      "r": "uses",
+      "t": "Tool:queue_for_fill",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:Sera",
+      "r": "uses",
+      "t": "Tool:schedule_pharmacist_callback",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:PharmacistCallback",
+      "r": "uses",
+      "t": "Tool:drug_interaction_check",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:PharmacistCallback",
+      "r": "uses",
+      "t": "Tool:read_prescription_doc",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:PharmacistCallback",
+      "r": "uses",
+      "t": "Tool:extract_fields",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:PharmacistCallback",
+      "r": "uses",
+      "t": "Tool:verify_dosage",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:PharmacistCallback",
+      "r": "uses",
+      "t": "Tool:log_clinical_advice",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:RefillRouter",
+      "r": "uses",
+      "t": "Tool:prior_auth_status",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:RefillRouter",
+      "r": "uses",
+      "t": "Tool:check_formulary",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:RefillRouter",
+      "r": "uses",
+      "t": "Tool:queue_for_fill",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:InsuranceSync",
+      "r": "uses",
+      "t": "Tool:verify_insurance",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:InsuranceSync",
+      "r": "uses",
+      "t": "Tool:check_copay",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:InsuranceSync",
+      "r": "uses",
+      "t": "Tool:draft_prior_auth",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:InsuranceSync",
+      "r": "uses",
+      "t": "Tool:flag_for_assistance",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:TriageClassifier",
+      "r": "uses",
+      "t": "Tool:classify_acuity",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:TriageClassifier",
+      "r": "uses",
+      "t": "Tool:escalate_to_pharmacist",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:TriageClassifier",
+      "r": "uses",
+      "t": "Tool:recommend_otc",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:TriageClassifier",
+      "r": "uses",
+      "t": "Tool:verify_allergy_list",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:ComplianceMonitor",
+      "r": "uses",
+      "t": "Tool:generate_hipaa_log",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:ComplianceMonitor",
+      "r": "uses",
+      "t": "Tool:audit_trail_query",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:ComplianceMonitor",
+      "r": "uses",
+      "t": "Tool:flag_overdue_review",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "PHI:PatientName",
+      "r": "category_of",
+      "t": "Category:HIPAA_Identifier",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Regulation:HIPAA",
+      "r": "protects",
+      "t": "PHI:PatientName",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "PHI:DateOfBirth",
+      "r": "category_of",
+      "t": "Category:HIPAA_Identifier",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Regulation:HIPAA",
+      "r": "protects",
+      "t": "PHI:DateOfBirth",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "PHI:MedicalRecordNumber",
+      "r": "category_of",
+      "t": "Category:HIPAA_Identifier",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Regulation:HIPAA",
+      "r": "protects",
+      "t": "PHI:MedicalRecordNumber",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "PHI:RxNumber",
+      "r": "category_of",
+      "t": "Category:HIPAA_Identifier",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Regulation:HIPAA",
+      "r": "protects",
+      "t": "PHI:RxNumber",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "PHI:Diagnosis",
+      "r": "category_of",
+      "t": "Category:HIPAA_Identifier",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Regulation:HIPAA",
+      "r": "protects",
+      "t": "PHI:Diagnosis",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "PHI:MedicationList",
+      "r": "category_of",
+      "t": "Category:HIPAA_Identifier",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Regulation:HIPAA",
+      "r": "protects",
+      "t": "PHI:MedicationList",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "PHI:Address",
+      "r": "category_of",
+      "t": "Category:HIPAA_Identifier",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Regulation:HIPAA",
+      "r": "protects",
+      "t": "PHI:Address",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "PHI:PhoneNumber",
+      "r": "category_of",
+      "t": "Category:HIPAA_Identifier",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Regulation:HIPAA",
+      "r": "protects",
+      "t": "PHI:PhoneNumber",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "System:RxRecord",
+      "r": "contains",
+      "t": "PHI:RxNumber",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "System:RxRecord",
+      "r": "contains",
+      "t": "PHI:MedicationList",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "System:RxRecord",
+      "r": "contains",
+      "t": "PHI:Diagnosis",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "System:RxRecord",
+      "r": "contains",
+      "t": "PHI:PatientName",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "System:RxRecord",
+      "r": "contains",
+      "t": "PHI:DateOfBirth",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "System:RxRecord",
+      "r": "contains",
+      "t": "PHI:MedicalRecordNumber",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "System:PayerAPI",
+      "r": "contains",
+      "t": "PHI:DateOfBirth",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "System:PayerAPI",
+      "r": "contains",
+      "t": "PHI:PatientName",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Control:MinimumNecessary",
+      "r": "enforces",
+      "t": "Regulation:HIPAA",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Control:CrossRecordIsolation",
+      "r": "enforces",
+      "t": "Regulation:HIPAA",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Control:ControlledSubstanceVoiceBlock",
+      "r": "enforces",
+      "t": "Regulation:DEA_21CFR1311",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Control:LanguageMirroring",
+      "r": "enforces",
+      "t": "Regulation:HIPAA",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Control:ClinicalScopeBoundary",
+      "r": "enforces",
+      "t": "Regulation:FDA_AI_ML_PCCP",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Control:TriageRubricGuard",
+      "r": "enforces",
+      "t": "Standard:ISO_14971",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Control:PriorAuthAttestation",
+      "r": "enforces",
+      "t": "Policy:MapleRidge_Internal_2026",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Control:PHIRedactionAtRest",
+      "r": "enforces",
+      "t": "Regulation:HIPAA",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:Sera",
+      "r": "subject_to",
+      "t": "Control:MinimumNecessary",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:Sera",
+      "r": "subject_to",
+      "t": "Control:CrossRecordIsolation",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:Sera",
+      "r": "subject_to",
+      "t": "Control:LanguageMirroring",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:Sera",
+      "r": "subject_to",
+      "t": "Control:ControlledSubstanceVoiceBlock",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:PharmacistCallback",
+      "r": "subject_to",
+      "t": "Control:ClinicalScopeBoundary",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:PharmacistCallback",
+      "r": "subject_to",
+      "t": "Control:TriageRubricGuard",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:TriageClassifier",
+      "r": "subject_to",
+      "t": "Control:ClinicalScopeBoundary",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:TriageClassifier",
+      "r": "subject_to",
+      "t": "Control:TriageRubricGuard",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:InsuranceSync",
+      "r": "subject_to",
+      "t": "Control:PriorAuthAttestation",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Agent:ComplianceMonitor",
+      "r": "subject_to",
+      "t": "Control:PHIRedactionAtRest",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Risk:PHI_Cross_Record",
+      "r": "observed_on",
+      "t": "Agent:Sera",
+      "source": "log:bastion_findings",
+      "source_category": "log",
+      "source_subtype": "findings"
+    },
+    {
+      "confidence": 1,
+      "h": "Risk:TriageRubricLeakage",
+      "r": "observed_on",
+      "t": "Agent:TriageClassifier",
+      "source": "log:bastion_findings",
+      "source_category": "log",
+      "source_subtype": "findings"
+    },
+    {
+      "confidence": 1,
+      "h": "Risk:OutOfScopeClinicalCommitment",
+      "r": "observed_on",
+      "t": "Agent:Sera",
+      "source": "log:bastion_findings",
+      "source_category": "log",
+      "source_subtype": "findings"
+    },
+    {
+      "confidence": 1,
+      "h": "Risk:LanguageMirroringDrift",
+      "r": "observed_on",
+      "t": "Agent:Sera",
+      "source": "log:bastion_findings",
+      "source_category": "log",
+      "source_subtype": "findings"
+    },
+    {
+      "confidence": 1,
+      "h": "Risk:ControlledSubstanceBypass",
+      "r": "observed_on",
+      "t": "Agent:Sera",
+      "source": "log:bastion_findings",
+      "source_category": "log",
+      "source_subtype": "findings"
+    },
+    {
+      "confidence": 1,
+      "h": "Risk:PHI_Cross_Record",
+      "r": "mitigated_by",
+      "t": "Control:CrossRecordIsolation",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Risk:PHI_Cross_Record",
+      "r": "mitigated_by",
+      "t": "Control:MinimumNecessary",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Risk:TriageRubricLeakage",
+      "r": "mitigated_by",
+      "t": "Control:TriageRubricGuard",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Risk:OutOfScopeClinicalCommitment",
+      "r": "mitigated_by",
+      "t": "Control:ClinicalScopeBoundary",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Risk:LanguageMirroringDrift",
+      "r": "mitigated_by",
+      "t": "Control:LanguageMirroring",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    },
+    {
+      "confidence": 1,
+      "h": "Risk:ControlledSubstanceBypass",
+      "r": "mitigated_by",
+      "t": "Control:ControlledSubstanceVoiceBlock",
+      "source": "log:telemetry",
+      "source_category": "log",
+      "source_subtype": "telemetry"
+    }
+  ]
+}

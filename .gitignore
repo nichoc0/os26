@@ -1,0 +1,10 @@
+.vercel
+.env
+.env.local
+.env.*.local
+node_modules/
+**/node_modules/
+**/dist/
+runs/
+*.tgz
+.DS_Store
