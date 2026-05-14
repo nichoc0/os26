@@ -57,58 +57,32 @@ export async function fireCowork(prompt, outputFile, opts = {}) {
   // knows where to drop its answer.
   const fullPrompt = `${prompt}\n\nWhen complete, write your final JSON output to this file path on the host system using your Bash tool: ${outputFile}\n\nAfter writing the file, reply with a one-line confirmation that includes the file path. Do not output the JSON inline — write it to the file only.`;
 
-  // 1. open claude://cowork/new?q=<encoded prompt>
-  const encoded = encodeURIComponent(fullPrompt);
-  const url = `claude://cowork/new?q=${encoded}`;
-  onLog(`[cowork] open ${url.slice(0, 80)}…`);
-  await exec('open', [url]);
+  // 1. Put the full prompt on the clipboard. Paste it into the ALREADY-OPEN
+  // Cowork session (whatever's active in Claude.app right now) — that's the
+  // session with /Users/nca/os26/runs mounted.
+  onLog(`[cowork] pbcopy prompt (${fullPrompt.length} chars)`);
+  await exec('pbcopy', [], { input: fullPrompt });
 
-  // 2. give Claude.app a beat to focus + render
-  await sleep(2200);
-
-  // 3. activate Claude.app and fire send. Three strategies in sequence —
-  // the first that succeeds wins. Cowork's send button is the hard target;
-  // keystrokes are the soft fallback.
+  // 2. Activate Claude, paste (Cmd+V), then plain Enter to send.
+  // Cowork (like Claude.ai web + ChatGPT + most modern chat UIs) treats
+  // plain Enter as "send" and Shift+Enter as "newline". Cmd+Return was
+  // the wrong guess.
   const applescript = `
     tell application "Claude" to activate
-    delay 0.5
+    delay 0.6
     tell application "System Events"
       tell process "Claude"
         set frontmost to true
         delay 0.3
-        -- Strategy A: walk the UI tree, find any AXButton whose description
-        -- or title mentions "send" / "submit" and click it. Most reliable on
-        -- chat UIs that bind Send to a button, not a keystroke.
-        try
-          set winFront to first window whose value of attribute "AXMain" is true
-          set allBtns to entire contents of winFront
-          repeat with el in allBtns
-            try
-              if class of el is button then
-                set btnName to name of el as string
-                set btnDesc to ""
-                try
-                  set btnDesc to description of el as string
-                end try
-                if btnName contains "Send" or btnName contains "Submit" or btnDesc contains "Send" or btnDesc contains "Submit" then
-                  click el
-                  return "clicked: " & btnName
-                end if
-              end if
-            end try
-          end repeat
-        end try
-        -- Strategy B: Cmd+Return (most chat UIs use this for send)
-        key code 36 using {command down}
-        delay 0.25
-        -- Strategy C: plain Return as a last belt-and-suspenders
-        -- (skip — could insert newline; we trust B unless A worked)
+        keystroke "v" using {command down}
+        delay 0.5
+        keystroke return
       end tell
     end tell
   `;
   try {
-    const { stdout } = await exec('osascript', ['-e', applescript]);
-    onLog(`[cowork] send attempt → ${stdout.trim().slice(0, 120) || 'keystroke fallback'}`);
+    await exec('osascript', ['-e', applescript]);
+    onLog('[cowork] Cmd+V + Enter sent to active Cowork session');
   } catch (e) {
     onLog(`[cowork] AppleScript send failed: ${e.message.slice(0, 200)}`);
   }
