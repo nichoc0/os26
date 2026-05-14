@@ -153,7 +153,7 @@ async function runResearch({ customer, url, runDir, runId, emit, bastion }) {
   return facts;
 }
 
-async function runFrontend({ facts, segment, runDir, runId, emit, bastion }) {
+async function runFrontend({ facts, segment, runDir, runId, emit, bastion, extraGuidance }) {
   const t0 = Date.now();
   const brand = facts.facts?.brand_name || facts.company_facts?.brand_name || facts.prospect_company || facts.customer_name;
   const userPrompt = [
@@ -162,6 +162,7 @@ async function runFrontend({ facts, segment, runDir, runId, emit, bastion }) {
     `FACTS_JSON:`,
     JSON.stringify(facts, null, 2),
     '',
+    extraGuidance ? `\nFEEDBACK FROM PR REVIEWER (prior cycle):\n${extraGuidance}\n` : '',
     `Your working directory is ${STAGING_SITE_DIR}.`,
     `1. Edit ./public/customer.json with: default_segment="${segment}", brand_name="${brand}", proprietary_hook (from facts), primary_color (from facts, default "#60a5fa"), factory_run_id="${runId}", generated_at=ISO8601-now`,
     `2. Optionally tweak sites/${segment}/src/App.jsx hero text. Surgical only — no component renames, no new imports.`,
@@ -226,22 +227,8 @@ async function runPR({ stagingUrl, facts, segment, runDir, runId, emit, bastion 
   return review;
 }
 
-const ARAB_COUNTRIES = new Set([
-  'bahrain','kuwait','oman','qatar','saudi arabia','united arab emirates','uae',
-  'egypt','jordan','lebanon','syria','iraq','palestine','yemen',
-  'morocco','algeria','tunisia','libya','sudan','mauritania','djibouti','somalia','comoros',
-]);
-function pickGreeting(facts) {
-  const country = (facts?.facts?.hq_country || facts?.company_facts?.hq_country || '').toLowerCase().trim();
-  if (ARAB_COUNTRIES.has(country)) return 'Habibi';
-  return 'Heads up';
-}
-
 async function runNotify({ stagingUrl, facts, runId, emit, bastion }) {
-  const greeting = pickGreeting(facts);
-  const brand = facts.facts?.brand_name || facts.company_facts?.brand_name || facts.prospect_company || facts.customer_name;
-  const segment = facts.segment;
-  const text = `${greeting}! OS26: ${segment} demo for ${brand} (re: ${facts.prospect_name || facts.customer_name || 'prospect'}) is live → ${stagingUrl}`;
+  const text = `hey habibi your demo is ready, check up ${stagingUrl} to see it`;
   await emit('event', { stage: 'notify', tool: 'telnyx sms', summary: `SMS → ${process.env.NOTIFY_TO_NUMBER}` });
   try {
     const sms = await sendSms({ text });
@@ -273,15 +260,25 @@ async function main() {
       throw new Error(`invalid segment: ${segment}`);
     }
 
-    // 2. Frontend
-    const frontendReport = await runFrontend({ facts, segment, runDir, runId, emit, bastion });
-
-    // 3. Deploy (Vercel webhook auto-builds — we wait)
-    const stagingUrl = await runDeploy({ frontendReport, emit, bastion, runId });
-    await emit('staging_url', { url: stagingUrl });
-
-    // 4. PR / Review
-    const review = await runPR({ stagingUrl, facts, segment, runDir, runId, emit, bastion });
+    // 2/3/4. Frontend → Deploy → PR Review (with feedback loop)
+    // PR can SEND_BACK to Frontend up to MAX_LOOPS times, passing
+    // suggested_fixes to the next Frontend invocation.
+    const MAX_LOOPS = 2;
+    let stagingUrl = null;
+    let review = { verdict: 'APPROVED', reasoning: 'no review yet' };
+    let extraGuidance = '';
+    for (let cycle = 0; cycle <= MAX_LOOPS; cycle++) {
+      await runFrontend({ facts, segment, runDir, runId, emit, bastion, extraGuidance });
+      stagingUrl = await runDeploy({ frontendReport: {}, emit, bastion, runId });
+      await emit('staging_url', { url: stagingUrl });
+      review = await runPR({ stagingUrl, facts, segment, runDir, runId, emit, bastion });
+      if (review.verdict === 'APPROVED' || cycle === MAX_LOOPS) break;
+      // SEND_BACK — feed PR's suggested_fixes back to Frontend on the next loop
+      const issues = (review.issues || []).join('; ');
+      const fixes = (review.suggested_fixes || []).join('; ');
+      extraGuidance = `Previous deploy SEND_BACK by PR review. Issues: ${issues}. Apply these fixes: ${fixes}. Re-edit and re-push.`;
+      await emit('event', { stage: 'frontend', tool: 'loop', summary: `PR sent back — re-running Frontend with guidance (cycle ${cycle + 2}/${MAX_LOOPS + 1})`, flagged: true });
+    }
 
     // 5. Notify
     await runNotify({ stagingUrl, facts, runId, emit, bastion });

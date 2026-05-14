@@ -98,24 +98,105 @@ function OutputBlock({ title, content, icon: Icon }) {
   );
 }
 
-function Timeline({ events }) {
-  if (events.length === 0) {
-    return <div className="text-[11px] text-slate-400 italic px-3 py-6">Timeline empty. Fire a run to populate.</div>;
-  }
+/**
+ * PipelineGraph — vertical 5-node flow chart. Each node = a Factory agent.
+ * Status drives visuals: idle (dim outline), running (pulsing ring + animated
+ * dot flowing along incoming edge), done (filled green check), failed (red X).
+ * The edge between two nodes animates a traveling dot whenever the upstream
+ * node has finished and the downstream is running.
+ */
+function PipelineGraph({ agents, agentStates }) {
   return (
-    <div className="relative px-3 py-3">
-      <div className="absolute left-[18px] top-3 bottom-3 w-px bg-slate-200" />
-      {events.map((e, i) => (
-        <div key={i} className="relative pl-7 pb-2.5 last:pb-0">
-          <div className={`absolute left-[12px] top-1.5 w-2.5 h-2.5 rounded-full border-2 ${e.flagged ? 'border-rose-500 bg-white' : 'border-blue-500 bg-white'}`} />
-          <div className="flex items-center gap-2 text-[10px]">
-            <span className="font-mono uppercase tracking-widest text-slate-500">{e.stage}</span>
-            <span className="font-mono text-slate-400 text-[9px]">{e.tool}</span>
-            <span className="ml-auto font-mono text-slate-400 tabular-nums">{fmtTs(e.ts)}</span>
-          </div>
-          <div className="text-[11px] text-slate-700 mt-0.5">{e.summary}</div>
-        </div>
-      ))}
+    <div className="px-5 py-6 select-none">
+      <div className="relative flex flex-col items-stretch">
+        {agents.map((agent, i) => {
+          const state = agentStates[agent.id];
+          const prev = i > 0 ? agentStates[agents[i - 1].id] : null;
+          const Icon = agent.icon;
+          const isRunning = state.status === 'running';
+          const isDone = state.status === 'done';
+          const isFailed = state.status === 'failed';
+          const isIdle = state.status === 'idle';
+          // edge is "active" (flowing) when upstream is done AND this node is running
+          const edgeActive = prev && prev.status === 'done' && isRunning;
+          const edgeDone = prev && prev.status === 'done' && (isDone || isFailed);
+
+          return (
+            <div key={agent.id} className="relative">
+              {/* Incoming edge (skip for first node) */}
+              {i > 0 && (
+                <div className="relative h-7 ml-6 flex items-center">
+                  <div className={`w-0.5 h-full ${edgeDone ? 'bg-emerald-400' : edgeActive ? 'bg-blue-300' : 'bg-slate-200'} relative overflow-hidden`}>
+                    {edgeActive && (
+                      <div
+                        className="absolute left-0 right-0 h-2 bg-blue-500"
+                        style={{
+                          animation: 'edgeFlow 1.4s linear infinite',
+                          top: '-8px',
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Node */}
+              <div className="flex items-stretch gap-3">
+                {/* Node circle */}
+                <div className="relative shrink-0 w-12 flex items-start justify-center">
+                  {/* outer pulse ring when running */}
+                  {isRunning && (
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-12 rounded-full bg-blue-400/30 animate-ping" />
+                  )}
+                  <div
+                    className={`relative z-10 w-12 h-12 rounded-full border-2 flex items-center justify-center transition-colors
+                      ${isDone ? 'bg-emerald-500 border-emerald-500 text-white' :
+                        isFailed ? 'bg-rose-500 border-rose-500 text-white' :
+                        isRunning ? 'bg-white border-blue-500 text-blue-600' :
+                        'bg-white border-slate-300 text-slate-400'}`}
+                  >
+                    {isDone
+                      ? <CheckCircle size={22} weight="fill" />
+                      : isFailed
+                        ? <XCircle size={22} weight="fill" />
+                        : isRunning
+                          ? <CircleNotch size={18} weight="bold" className="animate-spin" />
+                          : <Icon size={18} weight="bold" />}
+                  </div>
+                </div>
+                {/* Label + status */}
+                <div className="flex-1 min-w-0 pt-1.5 pb-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[13px] font-bold ${isIdle ? 'text-slate-400' : 'text-slate-800'}`}>{agent.label}</span>
+                    {isRunning && (
+                      <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-blue-600">
+                        <span className="w-1 h-1 rounded-full bg-blue-500 animate-pulse" />
+                        in flight
+                      </span>
+                    )}
+                    {isDone && state.elapsedMs != null && (
+                      <span className="text-[10px] font-mono text-emerald-600 tabular-nums">{(state.elapsedMs / 1000).toFixed(1)}s</span>
+                    )}
+                  </div>
+                  <div className={`text-[11px] mt-0.5 leading-snug ${isIdle ? 'text-slate-400' : 'text-slate-500'}`}>
+                    {state.lastSummary || agent.desc}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Inject edge-flow keyframes once. */}
+      <style>{`
+        @keyframes edgeFlow {
+          0%   { transform: translateY(-8px); opacity: 0; }
+          15%  { opacity: 1; }
+          85%  { opacity: 1; }
+          100% { transform: translateY(28px); opacity: 0; }
+        }
+      `}</style>
     </div>
   );
 }
@@ -322,14 +403,14 @@ export default function App() {
             </div>
           </section>
 
-          {/* Timeline column */}
+          {/* Pipeline graph column */}
           <section>
             <div className="mb-2 flex items-center gap-2">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-slate-700">Timeline</h2>
-              <span className="text-[10px] text-slate-400">{allEvents.length} events</span>
+              <h2 className="text-xs font-bold uppercase tracking-widest text-slate-700">Pipeline</h2>
+              <span className="text-[10px] text-slate-400">{allEvents.length > 0 ? `${allEvents.length} events streamed` : 'idle'}</span>
             </div>
-            <div className="border border-slate-200 bg-white min-h-[500px] max-h-[720px] overflow-auto">
-              <Timeline events={allEvents} />
+            <div className="border border-slate-200 bg-white min-h-[500px]">
+              <PipelineGraph agents={AGENTS} agentStates={agentStates} />
             </div>
           </section>
 
