@@ -66,24 +66,51 @@ export async function fireCowork(prompt, outputFile, opts = {}) {
   // 2. give Claude.app a beat to focus + render
   await sleep(2200);
 
-  // 3. activate Claude.app and send Enter to fire the prompt
+  // 3. activate Claude.app and fire send. Three strategies in sequence —
+  // the first that succeeds wins. Cowork's send button is the hard target;
+  // keystrokes are the soft fallback.
   const applescript = `
     tell application "Claude" to activate
-    delay 0.4
+    delay 0.5
     tell application "System Events"
       tell process "Claude"
         set frontmost to true
+        delay 0.3
+        -- Strategy A: walk the UI tree, find any AXButton whose description
+        -- or title mentions "send" / "submit" and click it. Most reliable on
+        -- chat UIs that bind Send to a button, not a keystroke.
+        try
+          set winFront to first window whose value of attribute "AXMain" is true
+          set allBtns to entire contents of winFront
+          repeat with el in allBtns
+            try
+              if class of el is button then
+                set btnName to name of el as string
+                set btnDesc to ""
+                try
+                  set btnDesc to description of el as string
+                end try
+                if btnName contains "Send" or btnName contains "Submit" or btnDesc contains "Send" or btnDesc contains "Submit" then
+                  click el
+                  return "clicked: " & btnName
+                end if
+              end if
+            end try
+          end repeat
+        end try
+        -- Strategy B: Cmd+Return (most chat UIs use this for send)
+        key code 36 using {command down}
+        delay 0.25
+        -- Strategy C: plain Return as a last belt-and-suspenders
+        -- (skip — could insert newline; we trust B unless A worked)
       end tell
-      delay 0.2
-      keystroke return
     end tell
   `;
   try {
-    await exec('osascript', ['-e', applescript]);
-    onLog('[cowork] sent return keystroke to Claude');
+    const { stdout } = await exec('osascript', ['-e', applescript]);
+    onLog(`[cowork] send attempt → ${stdout.trim().slice(0, 120) || 'keystroke fallback'}`);
   } catch (e) {
     onLog(`[cowork] AppleScript send failed: ${e.message.slice(0, 200)}`);
-    // continue anyway — operator may click Send manually
   }
 
   // 4. poll the output file
