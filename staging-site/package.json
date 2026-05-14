@@ -1,0 +1,13 @@
+{
+  "name": "os26-staging-site",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Combined customer-facing site at staging.demo.pistonsolutions.ai. Hosts /dev, /insurance, /compliance routes + a customer.json overlay.",
+  "scripts": {
+    "build": "node scripts/build-all.mjs",
+    "build:dev": "node scripts/build-all.mjs dev",
+    "build:insurance": "node scripts/build-all.mjs insurance",
+    "build:compliance": "node scripts/build-all.mjs compliance",
+    "preview": "npx serve dist -p 4173"
+  }
+}

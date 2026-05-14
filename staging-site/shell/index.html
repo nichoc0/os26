@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Loading your demo…</title>
+    <style>
+      html, body { margin: 0; padding: 0; height: 100%; background: #0B1120; color: #cbd5e1; font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "Segoe UI", sans-serif; }
+      .container { display: flex; align-items: center; justify-content: center; min-height: 100vh; flex-direction: column; gap: 24px; }
+      .pulse { width: 12px; height: 12px; background: #60a5fa; border-radius: 50%; animation: pulse 1.4s ease-in-out infinite; }
+      @keyframes pulse { 0%,100% { opacity: 0.4; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.1); } }
+      .label { font-size: 13px; letter-spacing: 0.15em; text-transform: uppercase; color: #64748b; }
+      .brand { font-size: 14px; color: #94a3b8; font-family: ui-monospace, "SF Mono", monospace; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="pulse"></div>
+      <div class="label" id="label">routing demo</div>
+      <div class="brand" id="brand"></div>
+    </div>
+    <script>
+      // Shell at `/`. Reads /customer.json and redirects to /<default_segment>/.
+      // Falls back to /dev/ if customer.json is missing or malformed.
+      (async () => {
+        let segment = 'dev';
+        let brand = '';
+        try {
+          const r = await fetch('/customer.json', { cache: 'no-store' });
+          if (r.ok) {
+            const d = await r.json();
+            if (['dev','insurance','compliance'].includes(d.default_segment)) segment = d.default_segment;
+            brand = d.brand_name || '';
+          }
+        } catch {}
+        if (brand) {
+          document.getElementById('brand').textContent = brand;
+          document.getElementById('label').textContent = `demo for ${brand}`;
+        }
+        const params = new URLSearchParams(window.location.search);
+        params.set('customer', brand);
+        const target = `/${segment}/?${params.toString()}`;
+        // Small delay so the pulse is visible during the demo arc
+        setTimeout(() => { window.location.replace(target); }, 600);
+      })();
+    </script>
+  </body>
+</html>

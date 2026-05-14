@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "node scripts/build-all.mjs",
+  "outputDirectory": "dist",
+  "framework": null,
+  "rewrites": [
+    { "source": "/dev/(.*)", "destination": "/dev/$1" },
+    { "source": "/insurance/(.*)", "destination": "/insurance/$1" },
+    { "source": "/compliance/(.*)", "destination": "/compliance/$1" }
+  ],
+  "headers": [
+    {
+      "source": "/customer.json",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
+    }
+  ]
+}

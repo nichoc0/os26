@@ -354,7 +354,14 @@ async function main() {
   return { runId, stagingUrl, facts, segment, review, elapsedMs: elapsed };
 }
 
-main().catch((e) => {
-  console.error(`\n✗ orchestrator failed: ${e.message}`);
-  process.exit(1);
-});
+// Only run main() when invoked directly (so this module can be imported
+// from the UI or for stage-isolated smoke tests without auto-firing).
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((e) => {
+    console.error(`\n✗ orchestrator failed: ${e.message}`);
+    process.exit(1);
+  });
+}
+
+// Exports for stage-isolated testing
+export { runResearch, runAdapt, runDeploy, runReview, runNotify, copyTemplate, spawnClaude };
