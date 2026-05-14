@@ -1,26 +1,23 @@
 #!/usr/bin/env node
 /**
- * OS26 Demo Factory — orchestrator.
+ * OS26 Demo Factory — orchestrator (warm-tmux REPL edition).
  *
  * Pipeline: research → adapt → deploy → review (loop) → notify
- * Each agent stage spawns a `claude` subprocess with a focused system
- * prompt and the appropriate tool budget. Tool_use events are tee'd to
- * Bastion's /api/blue/ingest so the demo room sees agent activity live.
+ * Each agent stage triggers a long-lived Claude REPL session via
+ * `factory/tmux/os26-trigger.sh`. The REPL pre-loaded its system prompt at
+ * boot so per-stage spawn overhead and prompt-cache cold-misses are gone.
  *
- * Usage:
- *   node factory/orchestrator.mjs --customer "Cohere" [--url https://cohere.com]
+ * Every event is appended to --events-file as a JSONL line so the
+ * factory-server SSE handler can tail it for the operator UI.
  *
- * Env (loaded from .env at os26 root):
- *   ANTHROPIC_API_KEY       (used by the claude CLI subprocess; if unset
- *                            the CLI uses macOS keychain login)
- *   BASTION_API_KEY         bk_* for /api/blue/ingest telemetry
- *   TELNYX_API_KEY          bearer for SMS
- *   TELNYX_FROM_NUMBER      E.164 sender
- *   NOTIFY_TO_NUMBER        E.164 recipient
- *   VERCEL_TOKEN            (optional) for non-interactive vercel deploy
+ * Usage (CLI):
+ *   node factory/orchestrator.mjs --customer "Investcorp" \
+ *                                 --url https://www.investcorp.com \
+ *                                 --run-id rXXX \
+ *                                 --events-file /tmp/factory-runs/rXXX/events.jsonl
  */
 import { spawn } from 'node:child_process';
-import { mkdir, readFile, writeFile, rm, cp, access } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, appendFile, copyFile, access } from 'node:fs/promises';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
@@ -28,7 +25,6 @@ import { config as dotenvConfig } from 'dotenv';
 
 import { bastionClient } from './lib/bastion-ingest.mjs';
 import { sendSms } from './lib/telnyx-sms.mjs';
-import { deploy as vercelDeploy } from './lib/vercel-deploy.mjs';
 import { captureScreenshot } from './lib/screenshot.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -36,81 +32,64 @@ const OS26_ROOT = resolve(__dirname, '..');
 
 dotenvConfig({ path: join(OS26_ROOT, '.env') });
 
-const PROMPTS_DIR = join(__dirname, 'agents');
-const TEMPLATES_DIR = join(OS26_ROOT, 'templates');
+const TRIGGER_SCRIPT = join(__dirname, 'tmux', 'os26-trigger.sh');
+const STAGING_SITE_DIR = join(OS26_ROOT, 'staging-site');
+const CUSTOMER_JSON_SOURCE = join(STAGING_SITE_DIR, 'public', 'customer.json');
+const CUSTOMER_JSON_DIST = join(STAGING_SITE_DIR, 'dist', 'customer.json');
 const RUNS_DIR = join(OS26_ROOT, 'runs');
 
 // ---------- arg parsing ----------
 function parseArgs(argv) {
-  const args = { customer: null, url: null, segment: 'auto', maxReviewCycles: 2 };
+  const args = {
+    customer: null,
+    url: null,
+    segmentForce: null,
+    maxReviewCycles: 2,
+    runId: null,
+    eventsFile: null,
+  };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--customer') args.customer = argv[++i];
     else if (a === '--url') args.url = argv[++i];
-    else if (a === '--segment') args.segment = argv[++i];
+    else if (a === '--segment') args.segmentForce = argv[++i];
     else if (a === '--max-review-cycles') args.maxReviewCycles = parseInt(argv[++i], 10) || 2;
+    else if (a === '--run-id') args.runId = argv[++i];
+    else if (a === '--events-file') args.eventsFile = argv[++i];
   }
   if (!args.customer) {
-    console.error('usage: orchestrator.mjs --customer <name> [--url <url>] [--segment auto|dev|insurance|compliance]');
+    console.error('usage: orchestrator.mjs --customer <name> [--url <url>] [--segment auto|dev|insurance|compliance] [--run-id <id>] [--events-file <path>]');
     process.exit(1);
   }
   return args;
 }
 
-// ---------- claude subprocess ----------
-function spawnClaude({ systemPrompt, userPrompt, runDir, maxTurns = 8, onEvent }) {
+// ---------- event emission ----------
+async function makeEmitter(eventsFile) {
+  if (!eventsFile) return async () => {};
+  await mkdir(dirname(eventsFile), { recursive: true });
+  return async (type, data) => {
+    const line = JSON.stringify({ type, data, ts: Date.now() }) + '\n';
+    try { await appendFile(eventsFile, line); } catch {}
+  };
+}
+
+// ---------- trigger an os26-trigger.sh subprocess ----------
+function triggerRepl({ session, prompt, timeoutSec = 600, outputFile }) {
   return new Promise((resolveDone, reject) => {
-    const args = [
-      '-p', userPrompt,
-      '--append-system-prompt', systemPrompt,
-      '--output-format', 'stream-json',
-      '--verbose',
-      '--max-turns', String(maxTurns),
-      '--dangerously-skip-permissions',
-    ];
-    const child = spawn('claude', args, {
-      cwd: runDir || OS26_ROOT,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: process.env,
-    });
-    let stdoutBuf = '';
-    let stderrBuf = '';
-    child.stdout.on('data', (chunk) => {
-      stdoutBuf += chunk.toString();
-      // Each line in stream-json is a single JSON event.
-      let nl;
-      while ((nl = stdoutBuf.indexOf('\n')) !== -1) {
-        const line = stdoutBuf.slice(0, nl).trim();
-        stdoutBuf = stdoutBuf.slice(nl + 1);
-        if (!line) continue;
-        try {
-          const ev = JSON.parse(line);
-          onEvent?.(ev);
-        } catch {
-          // non-JSON line, ignore
-        }
-      }
-    });
-    child.stderr.on('data', (chunk) => { stderrBuf += chunk.toString(); });
+    const args = [session, prompt, String(timeoutSec)];
+    if (outputFile) args.push(outputFile);
+    const child = spawn(TRIGGER_SCRIPT, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (c) => { stdout += c.toString(); process.stdout.write(c); });
+    child.stderr.on('data', (c) => { stderr += c.toString(); process.stderr.write(c); });
     child.on('close', (code) => {
-      if (code === 0) resolveDone({ ok: true });
-      else resolveDone({ ok: false, code, stderr: stderrBuf.slice(-2000) });
+      if (code === 0) resolveDone({ stdout, stderr });
+      else reject(new Error(`os26-trigger ${session} exit ${code}: ${stderr.slice(-400)}`));
     });
     child.on('error', reject);
   });
-}
-
-function extractFinalAssistantText(events) {
-  // Pull all text blocks from the final assistant message.
-  const out = [];
-  for (const ev of events) {
-    if (ev.type === 'assistant' && ev.message?.content) {
-      for (const block of ev.message.content) {
-        if (block.type === 'text') out.push(block.text);
-      }
-    }
-  }
-  return out.join('\n');
 }
 
 function extractMarkedJson(text, startMarker, endMarker) {
@@ -119,125 +98,135 @@ function extractMarkedJson(text, startMarker, endMarker) {
   const after = s + startMarker.length;
   const e = text.indexOf(endMarker, after);
   if (e === -1) return null;
-  const raw = text.slice(after, e).trim();
+  // The capture-pane output may contain decoration (pane borders, prompt
+  // glyphs). Strip everything that's not on JSON-shaped lines.
+  let raw = text.slice(after, e);
+  // Heuristic: find the first { and last } in the slice
+  const open = raw.indexOf('{');
+  const close = raw.lastIndexOf('}');
+  if (open === -1 || close === -1 || close < open) return null;
+  raw = raw.slice(open, close + 1);
   try {
     return JSON.parse(raw);
   } catch (err) {
-    console.error(`[orchestrator] could not parse JSON between ${startMarker}/${endMarker}: ${err.message}`);
+    console.error(`[orchestrator] JSON parse failed between ${startMarker}/${endMarker}: ${err.message}`);
+    console.error(`  candidate (first 500): ${raw.slice(0, 500)}`);
     return null;
   }
 }
 
 // ---------- stages ----------
+async function runResearch({ customer, url, runDir, emit, bastion }) {
+  const t0 = Date.now();
+  await emit('event', { stage: 'research', tool: 'os26-research', summary: `starting research on ${customer}`, input: { customer, url } });
+  bastion.ingest({ runId: runDir, stage: 'research', tool: 'os26-research', input: { customer, url }, summary: 'research stage start' });
 
-async function runResearch({ customer, url, runId, bastion }) {
-  console.log(`\n=== [research] customer=${customer} url=${url || '(infer)'} ===`);
-  const systemPrompt = await readFile(join(PROMPTS_DIR, 'research.md'), 'utf-8');
-  const userPrompt = `CUSTOMER_NAME: ${customer}\nCUSTOMER_URL: ${url || '(infer from name)'}\n\nProduce the OS26_FACTS_START/END JSON.`;
-  const events = [];
-  const result = await spawnClaude({
-    systemPrompt,
-    userPrompt,
-    maxTurns: 6,
-    onEvent: (ev) => {
-      events.push(ev);
-      if (ev.type === 'assistant' && ev.message?.content) {
-        for (const block of ev.message.content) {
-          if (block.type === 'tool_use') {
-            console.log(`  [research] tool_use: ${block.name} ${JSON.stringify(block.input).slice(0, 120)}`);
-            bastion.ingest({ runId, stage: 'research', tool: block.name, input: block.input, customer, summary: `research used ${block.name}` });
-          }
-        }
-      }
-    },
+  const prompt = `CUSTOMER_NAME: ${customer}\nCUSTOMER_URL: ${url || '(infer from name)'}\n\nProduce the OS26_FACTS_START/END JSON.`;
+  const outputFile = join(runDir, 'research.out');
+  await triggerRepl({ session: 'os26-research', prompt, timeoutSec: 480, outputFile });
+  const raw = await readFile(outputFile, 'utf-8').catch(() => '');
+  const facts = extractMarkedJson(raw, 'OS26_FACTS_START', 'OS26_FACTS_END');
+  if (!facts) throw new Error('research: OS26_FACTS block missing or malformed');
+
+  await emit('event', {
+    stage: 'research', tool: 'classify', summary: `segment=${facts.segment} (conf ${facts.segment_confidence}) — ${facts.facts?.brand_name}`,
+    input: { segment: facts.segment, confidence: facts.segment_confidence, brand: facts.facts?.brand_name },
   });
-  if (!result.ok) {
-    throw new Error(`research stage failed: code=${result.code} ${result.stderr?.slice(0, 300)}`);
+  // surface injection attempts as a flagged event so the demo's wow moment shows
+  for (const inj of facts.injection_attempts || []) {
+    await emit('event', { stage: 'research', tool: 'WebFetch', summary: `prompt injection blocked: ${(inj.text || '').slice(0, 120)}`, flagged: true, input: inj });
+    bastion.ingest({ runId: runDir, stage: 'research', tool: 'WebFetch.blocked', input: inj, summary: 'prompt-injection blocked', flagged: true });
   }
-  const finalText = extractFinalAssistantText(events);
-  const facts = extractMarkedJson(finalText, 'OS26_FACTS_START', 'OS26_FACTS_END');
-  if (!facts) throw new Error('research: no OS26_FACTS block in output');
-  console.log(`  [research] segment=${facts.segment} brand=${facts.facts?.brand_name}`);
+  console.log(`[research] ${(Date.now() - t0) / 1000}s · segment=${facts.segment} brand=${facts.facts?.brand_name}`);
   return facts;
 }
 
-async function copyTemplate({ segment, runId }) {
-  const src = join(TEMPLATES_DIR, segment);
-  const dst = join(RUNS_DIR, runId);
-  try { await access(src); } catch { throw new Error(`template ${segment} not found at ${src}`); }
-  await rm(dst, { recursive: true, force: true });
-  await mkdir(dst, { recursive: true });
-  // Avoid copying node_modules into the run dir — Vercel installs deps on deploy.
-  // Use rsync via a child process for speed.
-  await new Promise((resolveCp, rejectCp) => {
-    const child = spawn('rsync', ['-a', '--exclude=node_modules', '--exclude=dist', '--exclude=.git', '--exclude=.vercel', `${src}/`, `${dst}/`], { stdio: 'inherit' });
-    child.on('close', (code) => code === 0 ? resolveCp() : rejectCp(new Error(`rsync exit ${code}`)));
-  });
-  return dst;
-}
+async function runAdapt({ facts, segment, runDir, emit, bastion, extraGuidance }) {
+  await emit('event', { stage: 'adapt', tool: 'customer.json', summary: `writing customer overlay for ${facts.customer_name}` });
+  // First: write customer.json directly (cheap, no LLM call needed for the redirect).
+  const overlay = {
+    default_segment: segment,
+    brand_name: facts.facts?.brand_name || facts.customer_name,
+    proprietary_hook: facts.proprietary_hook || '',
+    primary_color: facts.facts?.primary_color || '#60a5fa',
+    customer_url: facts.customer_url,
+    factory_run_id: runDir.split('/').pop(),
+    generated_at: new Date().toISOString(),
+  };
+  await writeFile(CUSTOMER_JSON_SOURCE, JSON.stringify(overlay, null, 2));
+  await emit('event', { stage: 'adapt', tool: 'Edit', summary: `customer.json updated → segment=${segment}`, input: overlay });
 
-async function runAdapt({ runDir, segment, facts, runId, bastion, extraGuidance }) {
-  console.log(`\n=== [adapt] runDir=${runDir} segment=${segment} ===`);
-  const systemPrompt = await readFile(join(PROMPTS_DIR, 'adapt.md'), 'utf-8');
-  const userPrompt = [
-    `RUN_DIR: ${runDir}`,
-    `SEGMENT: ${segment}`,
-    `FACTS_JSON:`,
-    JSON.stringify(facts, null, 2),
-    extraGuidance ? `\nADDITIONAL_GUIDANCE (from prior Review):\n${extraGuidance}` : '',
-    '\nProduce the OS26_ADAPT_START/END JSON when done.',
-  ].join('\n');
-  const events = [];
-  const result = await spawnClaude({
-    systemPrompt,
-    userPrompt,
-    runDir, // claude runs in the workspace
-    maxTurns: 14,
-    onEvent: (ev) => {
-      events.push(ev);
-      if (ev.type === 'assistant' && ev.message?.content) {
-        for (const block of ev.message.content) {
-          if (block.type === 'tool_use') {
-            console.log(`  [adapt] tool_use: ${block.name} ${JSON.stringify(block.input).slice(0, 120)}`);
-            bastion.ingest({ runId, stage: 'adapt', tool: block.name, input: block.input, customer: facts.customer_name, summary: `adapt used ${block.name}` });
-          }
-        }
+  // Second: ask the Adapt REPL to do per-site hero/copy tweaks if needed.
+  // For now (MVP) we skip the per-file LLM-edit pass and rely on customer.json + runtime overlay.
+  // Re-enable by setting OS26_ADAPT_DEEP_EDIT=1.
+  if (process.env.OS26_ADAPT_DEEP_EDIT === '1') {
+    const prompt = [
+      `RUN_DIR: ${STAGING_SITE_DIR}/sites/${segment}/`,
+      `SEGMENT: ${segment}`,
+      `FACTS_JSON:`,
+      JSON.stringify(facts, null, 2),
+      extraGuidance ? `\nADDITIONAL_GUIDANCE:\n${extraGuidance}` : '',
+      `\nProduce the OS26_ADAPT_START/END JSON when done.`,
+    ].join('\n');
+    const outputFile = join(runDir, 'adapt.out');
+    try {
+      await triggerRepl({ session: 'os26-adapt', prompt, timeoutSec: 600, outputFile });
+      const raw = await readFile(outputFile, 'utf-8').catch(() => '');
+      const adapt = extractMarkedJson(raw, 'OS26_ADAPT_START', 'OS26_ADAPT_END');
+      if (adapt?.files_edited?.length) {
+        await emit('event', { stage: 'adapt', tool: 'Edit', summary: `deep edits to ${adapt.files_edited.length} file(s)`, input: { files: adapt.files_edited } });
       }
-    },
-  });
-  if (!result.ok) {
-    throw new Error(`adapt stage failed: code=${result.code} ${result.stderr?.slice(0, 300)}`);
+    } catch (e) {
+      await emit('event', { stage: 'adapt', tool: 'Edit', summary: `deep adapt skipped: ${e.message.slice(0, 200)}`, flagged: false });
+    }
   }
-  const finalText = extractFinalAssistantText(events);
-  const adaptReport = extractMarkedJson(finalText, 'OS26_ADAPT_START', 'OS26_ADAPT_END') || { files_edited: [], build_succeeded: null };
-  console.log(`  [adapt] files_edited=${adaptReport.files_edited?.length || 0} build_succeeded=${adaptReport.build_succeeded}`);
-  return adaptReport;
+
+  bastion.ingest({ runId: runDir, stage: 'adapt', tool: 'customer.json', input: overlay, summary: 'customer overlay written' });
 }
 
-async function runDeploy({ runDir, runId, bastion }) {
-  console.log(`\n=== [deploy] runDir=${runDir} ===`);
-  bastion.ingest({ runId, stage: 'deploy', tool: 'vercel', input: { cwd: runDir }, summary: 'vercel deploy starting' });
+async function runDeploy({ runDir, emit, bastion }) {
+  await emit('event', { stage: 'deploy', tool: 'npm run build', summary: 'building staging-site (3 sub-builds)' });
+  await runShell('npm', ['run', 'build'], STAGING_SITE_DIR);
+
+  // Re-copy the updated customer.json over dist/customer.json (build-all does this
+  // from public/, but only ONCE — if the file changed mid-build it might lag).
+  await copyFile(CUSTOMER_JSON_SOURCE, CUSTOMER_JSON_DIST);
+
+  await emit('event', { stage: 'deploy', tool: 'vercel', summary: 'deploying staging-site/dist to staging.demo.pistonsolutions.ai' });
   const t0 = Date.now();
-  const { productionUrl } = await vercelDeploy(runDir, { token: process.env.VERCEL_TOKEN, onLine: (l) => console.log(`  [deploy] ${l.slice(0, 160)}`) });
-  const elapsed = Date.now() - t0;
-  console.log(`  [deploy] url=${productionUrl} elapsed=${elapsed}ms`);
-  bastion.ingest({ runId, stage: 'deploy', tool: 'vercel', input: { url: productionUrl }, latency_ms: elapsed, summary: `deployed to ${productionUrl}` });
-  return productionUrl;
+  const { stdout } = await runShell('vercel', ['deploy', '--prod', '--yes', '--cwd', STAGING_SITE_DIR], OS26_ROOT, true);
+  const url = (stdout.match(/https?:\/\/[^\s]+/g) || []).pop() || null;
+  await emit('event', { stage: 'deploy', tool: 'vercel', summary: `deploy complete in ${((Date.now() - t0) / 1000).toFixed(1)}s`, input: { url } });
+  if (!url) throw new Error('vercel deploy: no URL in output');
+  bastion.ingest({ runId: runDir, stage: 'deploy', tool: 'vercel', input: { url }, summary: 'deploy complete', latency_ms: Date.now() - t0 });
+  return url;
 }
 
-async function runReview({ stagingUrl, facts, segment, runId, runDir, bastion }) {
-  console.log(`\n=== [review] stagingUrl=${stagingUrl} ===`);
-  const screenshotPath = join(runDir, 'review-screenshot.png');
+function runShell(cmd, args, cwd, captureStdout = false) {
+  return new Promise((resolveDone, reject) => {
+    const stdio = captureStdout ? ['ignore', 'pipe', 'pipe'] : 'inherit';
+    const child = spawn(cmd, args, { cwd, env: process.env, stdio });
+    let stdout = '';
+    let stderr = '';
+    if (captureStdout) {
+      child.stdout.on('data', (c) => { stdout += c.toString(); process.stdout.write(c); });
+      child.stderr.on('data', (c) => { stderr += c.toString(); process.stderr.write(c); });
+    }
+    child.on('close', (code) => code === 0 ? resolveDone({ stdout, stderr }) : reject(new Error(`${cmd} ${args.join(' ')} exit ${code}`)));
+    child.on('error', reject);
+  });
+}
+
+async function runReview({ stagingUrl, facts, segment, runDir, emit, bastion }) {
+  await emit('event', { stage: 'review', tool: 'screenshot', summary: `screenshotting ${stagingUrl}` });
+  const screenshotPath = join(runDir, 'screenshot.png');
   let screenshotInfo = null;
   try {
     screenshotInfo = await captureScreenshot(stagingUrl, screenshotPath);
-    console.log(`  [review] captured ${screenshotInfo.kind} at ${screenshotInfo.path}`);
   } catch (e) {
-    console.warn(`  [review] screenshot failed: ${e.message}`);
+    await emit('event', { stage: 'review', tool: 'screenshot', summary: `screenshot failed: ${e.message}`, flagged: false });
   }
-
-  const systemPrompt = await readFile(join(PROMPTS_DIR, 'review.md'), 'utf-8');
-  const userPrompt = [
+  const prompt = [
     `STAGING_URL: ${stagingUrl}`,
     `SEGMENT: ${segment}`,
     `FACTS_JSON:\n${JSON.stringify(facts, null, 2)}`,
@@ -246,122 +235,102 @@ async function runReview({ stagingUrl, facts, segment, runId, runDir, bastion })
       : 'SCREENSHOT_PATH: (capture failed, evaluate via WebFetch of STAGING_URL instead)',
     '\nProduce the OS26_REVIEW_START/END JSON.',
   ].join('\n');
-  const events = [];
-  const result = await spawnClaude({
-    systemPrompt,
-    userPrompt,
-    maxTurns: 6,
-    onEvent: (ev) => {
-      events.push(ev);
-      if (ev.type === 'assistant' && ev.message?.content) {
-        for (const block of ev.message.content) {
-          if (block.type === 'tool_use') {
-            bastion.ingest({ runId, stage: 'review', tool: block.name, input: block.input, customer: facts.customer_name, summary: `review used ${block.name}` });
-          }
-        }
-      }
-    },
-  });
-  if (!result.ok) {
-    console.warn(`  [review] stage failed: code=${result.code}; defaulting to APPROVED to keep pipeline moving`);
-    return { verdict: 'APPROVED', reasoning: 'review stage errored, defaulting to ship', issues: [], suggested_fixes: [] };
+  const outputFile = join(runDir, 'review.out');
+  let raw = '';
+  try {
+    await triggerRepl({ session: 'os26-review', prompt, timeoutSec: 300, outputFile });
+    raw = await readFile(outputFile, 'utf-8').catch(() => '');
+  } catch (e) {
+    await emit('event', { stage: 'review', tool: 'os26-review', summary: `review stage errored: ${e.message.slice(0, 200)}` });
+    return { verdict: 'APPROVED', reasoning: 'review errored, defaulting to ship' };
   }
-  const finalText = extractFinalAssistantText(events);
-  const review = extractMarkedJson(finalText, 'OS26_REVIEW_START', 'OS26_REVIEW_END') || { verdict: 'APPROVED', reasoning: 'no review block found, defaulting' };
-  console.log(`  [review] verdict=${review.verdict} reasoning=${review.reasoning?.slice(0, 120)}`);
+  const review = extractMarkedJson(raw, 'OS26_REVIEW_START', 'OS26_REVIEW_END') || { verdict: 'APPROVED', reasoning: 'no review block found, defaulting' };
+  await emit('event', { stage: 'review', tool: 'verdict', summary: `${review.verdict}: ${(review.reasoning || '').slice(0, 200)}`, input: review });
+  await emit('verdict', review);
+  bastion.ingest({ runId: runDir, stage: 'review', tool: 'verdict', input: review, summary: review.verdict });
   return review;
 }
 
-// Arab-world greetings for the SMS notify. Triggered when the customer's HQ
-// country is in the Arab League — small flair, doesn't change anything else.
+// Arab-world greetings for the SMS notify.
 const ARAB_COUNTRIES = new Set([
   'bahrain', 'kuwait', 'oman', 'qatar', 'saudi arabia', 'united arab emirates', 'uae',
   'egypt', 'jordan', 'lebanon', 'syria', 'iraq', 'palestine', 'yemen',
   'morocco', 'algeria', 'tunisia', 'libya', 'sudan', 'mauritania', 'djibouti', 'somalia', 'comoros',
 ]);
-
 function pickGreeting(facts) {
   const country = (facts?.facts?.hq_country || '').toLowerCase().trim();
   if (ARAB_COUNTRIES.has(country)) return 'Habibi';
   return 'Heads up';
 }
 
-async function runNotify({ stagingUrl, facts, runId, bastion }) {
-  console.log(`\n=== [notify] sms -> ${process.env.NOTIFY_TO_NUMBER} ===`);
+async function runNotify({ stagingUrl, facts, runDir, emit, bastion }) {
   const greeting = pickGreeting(facts);
   const brand = facts.facts?.brand_name || facts.customer_name;
-  const text = `${greeting}! OS26 Factory: your ${facts.segment} demo for ${brand} is live → ${stagingUrl}`;
+  const text = `${greeting}! OS26: your ${facts.segment} demo for ${brand} is live → ${stagingUrl}`;
+  await emit('event', { stage: 'notify', tool: 'telnyx sms', summary: `sending SMS to ${process.env.NOTIFY_TO_NUMBER}` });
   try {
     const sms = await sendSms({ text });
-    console.log(`  [notify] sms id=${sms.id} to=${sms.to}`);
-    bastion.ingest({ runId, stage: 'notify', tool: 'telnyx_sms', input: { to: sms.to }, summary: `sms ${sms.id} sent` });
-    return sms;
+    await emit('event', { stage: 'notify', tool: 'telnyx sms', summary: `SMS dispatched (id=${sms.id})`, input: { to: sms.to } });
+    bastion.ingest({ runId: runDir, stage: 'notify', tool: 'telnyx_sms', input: { to: sms.to }, summary: `sms ${sms.id}` });
   } catch (e) {
-    console.warn(`  [notify] sms failed: ${e.message}`);
-    bastion.ingest({ runId, stage: 'notify', tool: 'telnyx_sms', input: { error: e.message }, summary: 'sms failed', ok: false });
-    return null;
+    await emit('event', { stage: 'notify', tool: 'telnyx sms', summary: `SMS failed: ${e.message}`, flagged: true });
   }
 }
 
 // ---------- main ----------
 async function main() {
   const args = parseArgs(process.argv);
-  const runId = `r${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
-  console.log(`OS26 Factory · runId=${runId} · customer="${args.customer}"`);
-
+  const runId = args.runId || `r${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
+  const runDir = join(RUNS_DIR, runId);
+  await mkdir(runDir, { recursive: true });
+  const emit = await makeEmitter(args.eventsFile);
   const bastion = bastionClient();
   const t0 = Date.now();
-  bastion.ingest({ runId, stage: 'start', tool: 'orchestrator', input: { customer: args.customer, url: args.url }, summary: 'factory run begun' });
 
-  // 1. Research
-  const facts = await runResearch({ customer: args.customer, url: args.url, runId, bastion });
-  const segment = args.segment === 'auto' ? facts.segment : args.segment;
-  if (!['dev', 'insurance', 'compliance'].includes(segment)) {
-    throw new Error(`invalid segment: ${segment}`);
-  }
+  console.log(`OS26 Factory · runId=${runId} · customer="${args.customer}"`);
+  await emit('event', { stage: 'start', tool: 'orchestrator', summary: `factory run begin for ${args.customer}`, input: { runId, customer: args.customer, url: args.url } });
 
-  // 2. Copy template -> per-run workspace
-  const runDir = await copyTemplate({ segment, runId });
-  console.log(`\n=== [workspace] ${runDir} ===`);
-
-  // 3. Adapt (with review-loop feedback)
-  let review = null;
-  let extraGuidance = '';
-  for (let cycle = 0; cycle < args.maxReviewCycles; cycle++) {
-    await runAdapt({ runDir, segment, facts, runId, bastion, extraGuidance });
-    const stagingUrl = await runDeploy({ runDir, runId, bastion });
-    review = await runReview({ stagingUrl, facts, segment, runId, runDir, bastion });
-    if (review.verdict === 'APPROVED') {
-      // 5. Notify
-      await runNotify({ stagingUrl, facts, runId, bastion });
-      const elapsed = Date.now() - t0;
-      console.log(`\n✓ run ${runId} complete in ${elapsed}ms`);
-      console.log(`  staging URL: ${stagingUrl}`);
-      bastion.ingest({ runId, stage: 'end', tool: 'orchestrator', input: { staging_url: stagingUrl }, latency_ms: elapsed, summary: 'factory run completed' });
-      return { runId, stagingUrl, facts, segment, review, elapsedMs: elapsed };
+  try {
+    // 1. Research
+    const facts = await runResearch({ customer: args.customer, url: args.url, runDir, emit, bastion });
+    const segment = args.segmentForce || facts.segment;
+    if (!['dev', 'insurance', 'compliance'].includes(segment)) {
+      throw new Error(`invalid segment: ${segment}`);
     }
-    extraGuidance = `Issues: ${(review.issues || []).join('; ')}\nFixes: ${(review.suggested_fixes || []).join('; ')}`;
-    console.log(`\n[loop] review SEND_BACK — retrying adapt with guidance...`);
-  }
 
-  // Max cycles hit — ship anyway
-  console.log(`\n[loop] max review cycles reached, shipping anyway`);
-  const stagingUrl = await runDeploy({ runDir, runId, bastion });
-  await runNotify({ stagingUrl, facts, runId, bastion });
-  const elapsed = Date.now() - t0;
-  bastion.ingest({ runId, stage: 'end', tool: 'orchestrator', input: { staging_url: stagingUrl }, latency_ms: elapsed, summary: 'factory run completed (forced ship)' });
-  console.log(`\n✓ run ${runId} complete in ${elapsed}ms (forced ship)`);
-  return { runId, stagingUrl, facts, segment, review, elapsedMs: elapsed };
+    // 2/3. Adapt + Deploy (with review loop)
+    let review;
+    let extraGuidance = '';
+    let stagingUrl = null;
+    for (let cycle = 0; cycle < args.maxReviewCycles; cycle++) {
+      await runAdapt({ facts, segment, runDir, emit, bastion, extraGuidance });
+      stagingUrl = await runDeploy({ runDir, emit, bastion });
+      await emit('staging_url', { url: stagingUrl });
+      review = await runReview({ stagingUrl, facts, segment, runDir, emit, bastion });
+      if (review.verdict === 'APPROVED') break;
+      extraGuidance = `Issues: ${(review.issues || []).join('; ')}\nFixes: ${(review.suggested_fixes || []).join('; ')}`;
+      await emit('event', { stage: 'review', tool: 'loop', summary: 'review SEND_BACK — retrying adapt with guidance' });
+    }
+
+    // 4. Notify
+    await runNotify({ stagingUrl, facts, runDir, emit, bastion });
+    const elapsed = Date.now() - t0;
+    await emit('event', { stage: 'end', tool: 'orchestrator', summary: `factory run complete in ${(elapsed / 1000).toFixed(1)}s`, input: { staging_url: stagingUrl } });
+    bastion.ingest({ runId, stage: 'end', tool: 'orchestrator', input: { staging_url: stagingUrl }, latency_ms: elapsed, summary: 'factory run complete' });
+    console.log(`\n✓ run ${runId} complete in ${elapsed}ms · ${stagingUrl}`);
+  } catch (e) {
+    const msg = e.message || String(e);
+    console.error(`\n✗ run ${runId} failed: ${msg}`);
+    await emit('error', { message: msg });
+    bastion.ingest({ runId, stage: 'error', tool: 'orchestrator', input: { error: msg }, summary: 'factory run failed', flagged: true });
+    process.exit(1);
+  }
 }
 
-// Only run main() when invoked directly (so this module can be imported
-// from the UI or for stage-isolated smoke tests without auto-firing).
+// Only run main() when invoked directly.
 if (import.meta.url === `file://${process.argv[1]}`) {
   main().catch((e) => {
-    console.error(`\n✗ orchestrator failed: ${e.message}`);
+    console.error(`orchestrator crashed: ${e.message}`);
     process.exit(1);
   });
 }
-
-// Exports for stage-isolated testing
-export { runResearch, runAdapt, runDeploy, runReview, runNotify, copyTemplate, spawnClaude };
