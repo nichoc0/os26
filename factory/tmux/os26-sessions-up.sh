@@ -18,8 +18,13 @@ CLAUDE="/Users/nca/.local/bin/claude"
 export HOME=/Users/nca
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
-# Load .env so the warm REPLs inherit BASTION_API_KEY etc. (research and review
-# never use those directly, but Bash tool calls inside the REPL might).
+# OS26 REPLs run on ncharland@outlook.com's Claude Max sub (the one with
+# headroom). The gmail/main account is at 100% used; only the outlook account
+# has quota left today. Auth lives in macOS Keychain scoped by CLAUDE_CONFIG_DIR.
+# To re-login if needed: CLAUDE_CONFIG_DIR=~/.claude-os26 claude /login
+export CLAUDE_CONFIG_DIR="$HOME/.claude-os26"
+
+# Load .env so the warm REPLs inherit BASTION_API_KEY etc.
 if [ -f "$CWD/.env" ]; then
   set -a
   . "$CWD/.env"
@@ -69,7 +74,10 @@ start_session() {
   fi
 
   echo "starting $SESSION (system_prompt=$(basename "$SYSTEM_PROMPT"))"
-  local CLAUDE_ARGS="--dangerously-skip-permissions --model claude-sonnet-4-6 --effort xhigh"
+  # Match the operator's interactive Claude session model (Opus 4.7) so all
+  # agent work shares the same quota pool. No model/effort override = uses
+  # whatever default is configured in the user's settings.
+  local CLAUDE_ARGS="--dangerously-skip-permissions"
   if [ -f "$SYSTEM_PROMPT" ]; then
     CLAUDE_ARGS="$CLAUDE_ARGS --append-system-prompt $SYSTEM_PROMPT"
   else
