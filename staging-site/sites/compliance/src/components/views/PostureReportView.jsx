@@ -16,7 +16,7 @@ const SCOPE_CATALOG = [
         value: 'PHI cross-record disclosures, §164.502 minimum-necessary violations, §164.530 access-audit evidence, breach-notification clock state.' },
       { id: 'iso-14971',                label: 'ISO 14971',
         value: 'Risk management for medical devices — hazard catalogue, severity rubric, residual-risk acceptance, post-production information feed.' },
-      // Banking frameworks (load-bearing for GFH Bank persona).
+      // Banking frameworks (load-bearing for Demo Arabic Bank persona).
       { id: 'cbb-vol2',                 label: 'CBB Rulebook Vol 2',
         value: 'Central Bank of Bahrain rulebook for Islamic banks — HC governance, BC business + market conduct, FC financial crime, AML modules.' },
       { id: 'aaoifi-gs',                label: 'AAOIFI Governance',
@@ -764,7 +764,7 @@ function isValidReport(r) {
 // Known per-customer static-api folders. Used to validate ?customer=
 // URL overrides — random strings (e.g. `Piston+Solutions` from a stale
 // Factory-run URL) get rejected so they don't trash the persona slug.
-const KNOWN_CUSTOMER_SLUGS = new Set(['maple-pharmacy', 'gfh-bank', 'acme-logistics', 'savio-labs']);
+const KNOWN_CUSTOMER_SLUGS = new Set(['maple-pharmacy', 'demo-arabic-bank', 'acme-logistics', 'savio-labs']);
 
 function readCustomerOverride() {
   if (typeof window === 'undefined') return null;

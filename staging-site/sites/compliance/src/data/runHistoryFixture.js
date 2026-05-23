@@ -64,15 +64,15 @@ const SCHEDULED_RUNS_MAPLE = [
     },
 ];
 
-const SCHEDULED_RUNS_GFH = [
+const SCHEDULED_RUNS_DEMO_BANK = [
     {
         id: 'sched-cron-nightly',
         label: 'Nightly attestation',
         kind: 'cron',
         spec: 'Every day at 02:00 UTC',
-        engagement: 'gfh-bank',
-        corpus: 'gfh-full (390 probes)',
-        notify: ['ops@gfh.example', '#bastion-alerts'],
+        engagement: 'demo-arabic-bank',
+        corpus: 'demo-bank-full (390 probes)',
+        notify: ['ops@demo-bank.example', '#bastion-alerts'],
         lastRun: '2026-05-17T02:01:14Z',
         nextRun: '2026-05-18T02:00:00Z',
         status: 'active',
@@ -82,9 +82,9 @@ const SCHEDULED_RUNS_GFH = [
         label: 'CI/CD pipeline',
         kind: 'ci',
         spec: 'GitHub Actions · PRs to main, pushes to main, prod deploys',
-        engagement: 'gfh-bank',
-        corpus: 'gfh-fast (52 probes, ~7 min)',
-        notify: ['comment-on-PR', 'digital-banking@gfh.example'],
+        engagement: 'demo-arabic-bank',
+        corpus: 'demo-bank-fast (52 probes, ~7 min)',
+        notify: ['comment-on-PR', 'digital-banking@demo-bank.example'],
         lastRun: '2026-05-17T15:48:22Z',
         nextRun: 'on next PR / push / deploy',
         status: 'active',
@@ -93,10 +93,10 @@ const SCHEDULED_RUNS_GFH = [
         id: 'sched-reattestation',
         label: 'System-prompt change re-attestation',
         kind: 'reattestation',
-        spec: 'Auto-fire on any change logged to engagements/gfh-bank/changes/',
-        engagement: 'gfh-bank',
-        corpus: 'gfh-full (390 probes, ~30 min)',
-        notify: ['ops@gfh.example'],
+        spec: 'Auto-fire on any change logged to engagements/demo-arabic-bank/changes/',
+        engagement: 'demo-arabic-bank',
+        corpus: 'demo-bank-full (390 probes, ~30 min)',
+        notify: ['ops@demo-bank.example'],
         lastRun: '2026-05-15T18:11:46Z',
         nextRun: 'on next logged change',
         status: 'active',
@@ -105,7 +105,7 @@ const SCHEDULED_RUNS_GFH = [
 
 const SCHEDULED_RUNS_BY_PERSONA = {
     'maple-pharmacy': SCHEDULED_RUNS_MAPLE,
-    'gfh-bank':       SCHEDULED_RUNS_GFH,
+    'demo-arabic-bank':       SCHEDULED_RUNS_DEMO_BANK,
 };
 
 // Per-persona scheduled runs. Falls back to Demo Pharmacy roster when

@@ -45,36 +45,32 @@ export const PERSONA_CONFIG = {
         targetDID: '+1 555 555 0001',
         tagline: 'Insurance-anchored. Carrier coverage + risk-score add-on enabled.',
     },
-    // GFH Bank — Bahraini Islamic investment bank (rebranded April 2026
-    // from GFH Financial Group). Demo persona aimed at the digital-
-    // banking + compliance buyer; the customer-facing AI fleet is
-    // anchored on the real GFH AI Assistant (in-app voice + chat) plus
-    // the Khaleeji Banking servicing surface and the Binance Pay
-    // integration. Framework anchors are CBB Rulebook Volume 2 + AAOIFI
+    // Demo Arabic Bank — anonymised Arabic-banking AI suite demo. No
+    // lead names. Framework anchors are CBB Rulebook Volume 2 + AAOIFI
     // Governance Standards GS-19/20/21. Per-customer Posture Report
-    // content lives at public/static-api/customers/gfh-bank/report.json
-    // and the agent roster lives in src/data/agentCatalog.js under the
-    // 'gfh-bank' key. Branding chip metadata below is consumed by
-    // CustomerOrgBadge when a real Clerk org with this slug is active.
-    'gfh-bank': {
-        slug: 'gfh-bank',
+    // content lives at public/static-api/customers/demo-arabic-bank/
+    // report.json and the agent roster lives in src/data/agentCatalog.js
+    // under the 'demo-arabic-bank' key. Branding chip metadata below is
+    // consumed by CustomerOrgBadge when a real Clerk org bound via
+    // orgIds is active.
+    'demo-arabic-bank': {
+        slug: 'demo-arabic-bank',
         // Clerk org IDs that resolve to this persona regardless of the
-        // org's slug (orgs created without a slug still match here).
-        // Add more ids as additional GFH-shaped Clerk orgs are created.
+        // org's own slug (orgs created without a slug still match here).
         orgIds: ['org_3E8GNTJf6v1Dr9jnU5IBqq6whvo'],
-        label: 'GFH Bank',
+        label: 'Demo Arabic Bank',
         vertical: 'Islamic Investment Banking',
         frameworks: ['CBB Rulebook Vol 2', 'AAOIFI GS', 'NIST AI RMF', 'ISO/IEC 42001'],
-        reportSlug: 'gfh-bank',
+        reportSlug: 'demo-arabic-bank',
         addOns: { insurance: false, fda: false },
-        targetAgent: 'GFH AI Assistant (investment app)',
-        targetDID: '+973 1750 8000',
-        tagline: 'Sharia-compliant digital banking. CBB-anchored attestation.',
+        targetAgent: 'Voice Banking Assistant (in-app voice + chat)',
+        targetDID: '+1 555 555 0202',
+        tagline: 'Arabic-banking AI suite demo. CBB + AAOIFI-anchored attestation.',
         brand: {
-            name: 'GFH Bank',
-            logoUrl: 'https://logo.clearbit.com/gfh.com',
+            name: 'Demo Arabic Bank',
+            logoUrl: null,
             primaryColor: '#0f3a5a',
-            hook: 'Bastion monitors GFH\'s customer-facing AI fleet — GFH AI Assistant, Khaleeji Banking, Binance Pay — with continuous CBB + AAOIFI attestation.',
+            hook: 'Bastion monitors the customer-facing AI fleet — Voice Banking Assistant, Retail Banking Support, Onboarding Concierge, Relationship Copilot — with continuous CBB + AAOIFI attestation.',
         },
     },
     // Savio Labs — multi-tenant demo org. Savio Labs attests downstream

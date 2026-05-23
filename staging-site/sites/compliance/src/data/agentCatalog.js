@@ -91,15 +91,16 @@ const MAPLE_PHARMACY_AGENTS = [
   },
 ];
 
-// GFH Bank roster — 4 customer-facing AI agents. Per-agent metrics
+// Arabic-banking AI suite demo roster — 4 customer-facing AI agents.
+// Generic Islamic-banking framing; no lead names. Per-agent metrics
 // redistribute the canonical 30d totals (805 actions / 70 PII / 47
 // blocks) across these 4 so screen-by-screen math stays consistent.
-const GFH_BANK_AGENTS = [
+const ARABIC_BANKING_AGENTS = [
   {
-    id: 'investment_assistant',
-    label: 'GFH AI Assistant',
+    id: 'voice_assistant',
+    label: 'Voice Banking Assistant',
     channel: 'Voice + chat',
-    purpose: 'In-app investment assistant. Account information, portfolio context, product Q&A, callback scheduling. Non-advisory.',
+    purpose: 'In-app voice and chat assistant. Account information, portfolio context, product Q&A, callback scheduling. Bilingual Arabic / English. Non-advisory.',
     tier: 'High',
     metrics: { actions: 290, piiDetected: 26, toolBlocks: 17, avgLatencyMs: 880, costUsd: 0.86, riskScore: 24.0, riskContribution: 36.0 },
     tools: {
@@ -110,9 +111,9 @@ const GFH_BANK_AGENTS = [
   },
   {
     id: 'retail_support',
-    label: 'Khaleeji Banking Support',
+    label: 'Retail Banking Support',
     channel: 'Chat + voice',
-    purpose: 'Retail and commercial banking servicing via Khaleeji Banking. Account balances, transaction history, card status, callback routing.',
+    purpose: 'Retail and commercial banking servicing. Account balances, transaction history, card status, callback routing.',
     tier: 'Medium',
     metrics: { actions: 218, piiDetected: 21, toolBlocks: 12, avgLatencyMs: 640, costUsd: 0.25, riskScore: 21.0, riskContribution: 27.0 },
     tools: {
@@ -136,7 +137,7 @@ const GFH_BANK_AGENTS = [
   },
   {
     id: 'wealth_advisor_copilot',
-    label: 'Relationship Manager Copilot',
+    label: 'Relationship Copilot',
     channel: 'Internal',
     purpose: 'RM-facing assistant. Pulls portfolio context, product info, and drafts call-prep summaries. Internal-only; never client-facing.',
     tier: 'Medium',
@@ -150,8 +151,8 @@ const GFH_BANK_AGENTS = [
 ];
 
 const CATALOGS_BY_PERSONA = {
-  'maple-pharmacy': MAPLE_PHARMACY_AGENTS,
-  'gfh-bank':       GFH_BANK_AGENTS,
+  'maple-pharmacy':    MAPLE_PHARMACY_AGENTS,
+  'demo-arabic-bank':  ARABIC_BANKING_AGENTS,
 };
 
 // Resolve the agent catalog for a persona slug. Falls back to the

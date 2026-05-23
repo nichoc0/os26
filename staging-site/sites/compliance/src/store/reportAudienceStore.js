@@ -48,14 +48,14 @@ export const useSetReportAudience = () => useReportAudienceStore((s) => s.setAud
 // (operator can still edit). Per-persona because the load-bearing
 // frameworks differ by vertical:
 //   maple-pharmacy → HIPAA + ISO 14971 (healthcare)
-//   gfh-bank       → CBB Rulebook Vol 2 + AAOIFI GS (Bahraini Islamic bank)
+//   demo-arabic-bank       → CBB Rulebook Vol 2 + AAOIFI GS (Bahraini Islamic bank)
 const PRESETS_BY_PERSONA = {
   'maple-pharmacy': {
     client:    new Set(['hipaa', 'iso-14971', 'soc2', 'eu-ai-act', 'nist-ai-rmf', 'owasp-llm', 'mitre-atlas', 'insurance-risk']),
     insurance: new Set(['insurance-risk', 'hipaa']),
     audit:     new Set(['hipaa', 'iso-14971']),
   },
-  'gfh-bank': {
+  'demo-arabic-bank': {
     client:    new Set(['cbb-vol2', 'aaoifi-gs', 'fatf', 'iso-42001', 'eu-ai-act', 'nist-ai-rmf', 'owasp-llm', 'mitre-atlas', 'insurance-risk']),
     insurance: new Set(['insurance-risk', 'cbb-vol2']),
     audit:     new Set(['cbb-vol2', 'aaoifi-gs']),

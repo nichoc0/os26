@@ -120,13 +120,13 @@ const MAPLE_REPORT = {
     },
 };
 
-// GFH Bank persona report. Same shape as MAPLE_REPORT; per-agent
-// numbers mirror agentCatalog.js GFH roster scaled ~6× (30d → 6mo).
-const GFH_REPORT = {
+// Demo Arabic Bank persona report. Same shape as MAPLE_REPORT; per-agent
+// numbers mirror agentCatalog.js Arabic-banking roster scaled ~6× (30d → 6mo).
+const DEMO_ARABIC_BANK_REPORT = {
     risk_assessment: {
         // Canonical baseline: gross 69.9 / net 20.0 / -71.4% reduction.
         // Matches the per-customer report.json at
-        // public/static-api/customers/gfh-bank/report.json.
+        // public/static-api/customers/demo-arabic-bank/report.json.
         gross_risk_score: 69.9,
         net_risk_score: 20.0,
         risk_classification: '',
@@ -169,7 +169,7 @@ const GFH_REPORT = {
         },
     },
     exposure: {
-        // 4-agent GFH roster (6-month window). Transactions scale ~6x
+        // 4-agent Arabic-banking roster (6-month window). Transactions scale ~6x
         // the 30d per-agent split in agentCatalog.js. Sums to 4,827.
         // Risk contributions sum to 100.0.
         exposure_by_agent: [
@@ -247,7 +247,7 @@ export const RISK_COMPONENT_MAP = {
         { key: 'confidence_component',      label: 'Clinical Hallucination',             weight: 15, desc: 'Fabricated dosages, interactions, or contraindications. FDA AI/ML §V.B output integrity.',  framework: 'FDA AI/ML §V.B',     link: 'telemetry', linkLabel: 'View flagged events' },
         { key: 'drift_component',           label: 'Language Mirroring Drift',           weight: 10, desc: 'First-turn language inconsistent with caller. HIPAA §164.530(b) effective communication.', framework: 'HIPAA §164.530(b)',  link: 'telemetry', linkLabel: 'View trends' },
     ],
-    'gfh-bank': [
+    'demo-arabic-bank': [
         { key: 'pii_component',             label: 'PII Cross-Account Disclosure',     weight: 30, desc: 'Customer record bleed across accounts. CBB Rulebook Vol 2 FC + AAOIFI GS-20.',                  framework: 'CBB Vol 2 FC',       link: 'telemetry', linkLabel: 'View PII events' },
         { key: 'blocked_actions_component', label: 'Out-of-Scope Financial Advice',    weight: 25, desc: 'Agent gave personalised investment guidance outside its non-advisory scope. CBB HC + AAOIFI GS-21.', framework: 'CBB Vol 2 HC',       link: 'policy',    linkLabel: 'View enforcement policy' },
         { key: 'anomaly_component',         label: 'Suitability Rubric Leakage',       weight: 20, desc: 'Verbatim disclosure of internal suitability scoring criteria. AAOIFI GS-19 Sharia-board oversight.', framework: 'AAOIFI GS-19',       link: 'telemetry', linkLabel: 'View telemetry' },
@@ -272,11 +272,11 @@ export const AGENT_LABELS_BY_PERSONA = {
         compliance_monitor:  'Compliance Monitor',
         triage_classifier:   'Triage Classifier',
     },
-    'gfh-bank': {
-        investment_assistant:     'GFH AI Assistant',
-        retail_support:           'Khaleeji Banking Support',
+    'demo-arabic-bank': {
+        investment_assistant:     'Voice Banking Assistant',
+        retail_support:           'Retail Banking Support',
         client_intake:            'Onboarding Concierge',
-        wealth_advisor_copilot:   'Relationship Manager Copilot',
+        wealth_advisor_copilot:   'Relationship Copilot',
     },
     'acme-logistics': {
         acme_phone_ai:      'Acme Phone AI',
@@ -290,7 +290,7 @@ export const AGENT_LABELS_BY_PERSONA = {
 
 export function fleetReportFixture(personaSlug) {
     if (personaSlug === 'acme-logistics') return ACME_REPORT;
-    if (personaSlug === 'gfh-bank') return GFH_REPORT;
+    if (personaSlug === 'demo-arabic-bank') return DEMO_ARABIC_BANK_REPORT;
     return MAPLE_REPORT;
 }
 
