@@ -348,7 +348,7 @@ export function RedView() {
             {Object.entries(loopsByScope).map(([scope, runs]) => (
               <section key={`sweep-${scope}`}>
                 <h2 className="text-xs font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300 mb-3">
-                  24/7 auto-sweep · {scope === 'demo' ? 'Acme Phone AI' : scope === 'acme-vrp' ? 'Acme Shopping Assistant' : scope} · {runs.length} probe{runs.length === 1 ? '' : 's'}
+                  24/7 auto-sweep · {scope === 'demo' ? 'Sera (Intake)' : scope === 'acme-vrp' ? 'Acme Shopping Assistant' : scope} · {runs.length} probe{runs.length === 1 ? '' : 's'}
                 </h2>
                 <SweepFeedPanel runs={runs} scope={scope} />
               </section>

@@ -15,17 +15,26 @@ import ProductionGate from './components/auth/ProductionGate';
 import DemoGate from './components/auth/DemoGate';
 import Docs from './components/views/Docs';
 import { fetchEvents, fetchAgents, fetchOverview, fetchEventDetail, fetchTimeline, fetchChangelog } from './components/data/api';
+import { usePersona } from './store/personaStore';
 
 const EMPTY_DATA = {
   events: [],
   agents: [],
   agentMeta: {
+    // Demo Pharmacy (default)
     sera_intake:         { color: '#2563eb', label: 'Sera (Intake)' },
     pharmacist_callback: { color: '#1e40af', label: 'Pharmacist Callback' },
     refill_router:       { color: '#3b82f6', label: 'Refill Router' },
     insurance_sync:      { color: '#1d4ed8', label: 'Insurance Sync' },
     triage_classifier:   { color: '#60a5fa', label: 'Triage Classifier' },
     compliance_monitor:  { color: '#475569', label: 'Compliance Monitor' },
+    // GFH Bank
+    investment_assistant:     { color: '#0f3a5a', label: 'GFH AI Assistant' },
+    retail_support:           { color: '#1e40af', label: 'Khaleeji Banking Support' },
+    client_intake:            { color: '#2563eb', label: 'Onboarding Concierge' },
+    wealth_advisor_copilot:   { color: '#3b82f6', label: 'Relationship Manager Copilot' },
+    crypto_payments_helper:   { color: '#60a5fa', label: 'Crypto Payments Helper' },
+    compliance_qa:            { color: '#475569', label: 'Compliance Reviewer' },
   },
   overview: { total_requests: 0, total_cost: 0, avg_latency: 0, pii_exposures: 0, fleet_risk: 0, agents_monitored: 0 },
   timeline: [],
@@ -57,11 +66,11 @@ const LEGACY_REDIRECTS = {
   sockets:         { view: 'voice-testing', tab: 'sockets' },
   spawn:           { view: 'voice-testing', tab: 'spawn' },
   red:             { view: 'voice-testing', tab: 'red' },
-  agents:          { view: 'fleet', tab: 'agents' },
-  telemetry:       { view: 'fleet', tab: 'live' },
-  drilldown:       { view: 'fleet', tab: 'live' },
-  sessions:        { view: 'fleet', tab: 'sessions' },
-  vault:           { view: 'fleet', tab: 'sessions' },
+  agents:          { view: 'fleet', tab: 'activity' },
+  telemetry:       { view: 'fleet', tab: 'activity' },
+  drilldown:       { view: 'fleet', tab: 'activity' },
+  sessions:        { view: 'fleet', tab: 'activity' },
+  vault:           { view: 'fleet', tab: 'graph' },
   'knowledge-graph': { view: 'fleet', tab: 'graph' },
   'risk-coverage': { view: 'reports' },
   risk:            { view: 'reports' },
@@ -127,17 +136,15 @@ export default function App() {
   // surfaces its empty state. Anonymous viewers (demo) still get
   // the curated fixtures because the loadData fetch path runs.
   const { isSignedIn } = useUser();
+  const persona = usePersona();
+  // customerSlug = persona slug when it matches a published per-customer
+  // static-api folder (public/static-api/customers/<slug>/). Used by
+  // fetchAgents/fetchEvents/fetchOverview/fetchTimeline to load the
+  // org-scoped JSON before falling back to the global pharmacy seed.
+  const customerSlug = persona?.slug || null;
 
   const loadData = useCallback(async () => {
-    if (isSignedIn) {
-      // Tenant-clean default: zero data. Backend org-scoped feeds
-      // (Phase 3 wiring) populate views that consume `useVoiceToken`
-      // directly (PostureReportView live panel, CiRunsPanel).
-      setData(EMPTY_DATA);
-      setReportData(null);
-      setLoading(false);
-      return;
-    }
+    // OS26 demo: always load fixtures regardless of sign-in state.
     try {
       const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.BASE_URL !== '/' ? import.meta.env.BASE_URL.replace(/\/$/, '') : '');
       const isProdApp = import.meta.env.VITE_APP_MODE === 'production';
@@ -153,10 +160,10 @@ export default function App() {
       };
 
       const [eventsResp, agentsResp, overviewResp, timelineResp, reportResp] = await Promise.all([
-        fetchEvents({ limit: 500 }),
-        fetchAgents(),
-        fetchOverview(),
-        fetchTimeline(14).catch(() => []),
+        fetchEvents({ limit: 500 }, { customerSlug }),
+        fetchAgents({ customerSlug }),
+        fetchOverview({ customerSlug }),
+        fetchTimeline(14, { customerSlug }).catch(() => []),
         fetchReport(),
       ]);
       if (reportResp) setReportData(reportResp);
@@ -165,7 +172,6 @@ export default function App() {
 
       // Normalize API field names
       let events = (eventsResp.events || eventsResp || [])
-        .filter(e => knownAgents.has(e.agent || e.agent_id))
         .map(e => ({
           ...e,
           agent: e.agent || e.agent_id,
@@ -186,7 +192,6 @@ export default function App() {
       }
 
       let agentsList = (agentsResp.agents || agentsResp || [])
-        .filter(a => knownAgents.has(a.id || a.agent_id))
         .map(a => {
           const id = a.id || a.agent_id;
           return {
@@ -259,7 +264,7 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [isSignedIn]);
+  }, [isSignedIn, customerSlug]);
 
   useEffect(() => {
     loadData();

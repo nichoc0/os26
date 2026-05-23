@@ -23,7 +23,7 @@ import { useVoiceToken } from '../../data/useVoiceToken';
 
 const DEFAULT_GATEWAY = 'https://voice-demo.pistonsolutions.ai';
 
-export default function LiveVoiceView() {
+export default function LiveVoiceView({ embedded = false } = {}) {
   const { apiKey: bearer, status: bearerStatus } = useVoiceToken();
   const gateway = (import.meta.env.VITE_VOICE_GATEWAY_URL || DEFAULT_GATEWAY).replace(/\/+$/, '');
   const listenUrl = bearer
@@ -64,6 +64,42 @@ export default function LiveVoiceView() {
       clearInterval(id);
     };
   }, [activeCallsUrl, bearer, bearerStatus]);
+
+  // Embedded mount (Calls panel): strip the section header — the parent
+  // already names this panel — and replace the verbose unreachable hint
+  // with a one-line empty state. Functionality identical otherwise.
+  if (embedded) {
+    return (
+      <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950">
+        <div className="px-3 py-2 flex items-center justify-end gap-2 text-[10px] uppercase tracking-widest">
+          <StatusPill reachable={reachable} activeCount={activeCount} compact />
+          <a
+            href={listenUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 inline-flex items-center gap-1 font-semibold"
+            title="Open the listen widget in a new tab"
+          >
+            New tab <ArrowSquareOut size={10} />
+          </a>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          {reachable === false ? (
+            <CompactEmpty message="No active calls" sub="Live audio + transcript will appear here when a probe is running." />
+          ) : reachable === true && activeCount === 0 ? (
+            <CompactEmpty message="No active calls" sub="Spawn a probe to see audio + transcript stream in here live." />
+          ) : (
+            <iframe
+              title="Bastion live voice listen widget"
+              src={listenUrl}
+              className="w-full h-full border-0"
+              allow="autoplay; microphone"
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -106,23 +142,33 @@ export default function LiveVoiceView() {
   );
 }
 
-function StatusPill({ reachable, activeCount }) {
+function CompactEmpty({ message, sub }) {
+  return (
+    <div className="h-full min-h-[200px] flex items-center justify-center px-6 py-10 text-center">
+      <div>
+        <div className="text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1">{message}</div>
+        {sub && <div className="text-[11px] text-slate-400 dark:text-slate-500 max-w-xs">{sub}</div>}
+      </div>
+    </div>
+  );
+}
+
+function StatusPill({ reachable, activeCount, compact = false }) {
+  const cls = compact
+    ? 'text-[9px] uppercase tracking-widest font-semibold px-1.5 py-0.5 rounded-none'
+    : 'text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded-none';
   if (reachable === null) {
-    return (
-      <span className="text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded-none bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-        Connecting…
-      </span>
-    );
+    return <span className={`${cls} bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400`}>Connecting…</span>;
   }
   if (reachable === false) {
-    return (
-      <span className="text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded-none bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300">
-        Gateway offline
-      </span>
-    );
+    // Compact mode hides the gateway-offline badge entirely — the
+    // CompactEmpty body already explains "no active calls" and the
+    // raw offline state is noise for the operator.
+    if (compact) return null;
+    return <span className={`${cls} bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300`}>Gateway offline</span>;
   }
   return (
-    <span className="text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded-none bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+    <span className={`${cls} bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300`}>
       {activeCount === 0 ? 'No active calls' : `${activeCount} active`}
     </span>
   );

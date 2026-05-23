@@ -95,11 +95,13 @@ export function RiskBreakdown({ reportData, setCurrentView, persona }) {
               <LinkText onClick={nav('telemetry')}>View live data</LinkText>
             </p>
           </div>
-          <div className="text-right">
-            <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-              {risk.risk_classification || '—'}
-            </span>
-          </div>
+          {risk.risk_classification ? (
+            <div className="text-right">
+              <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                {risk.risk_classification}
+              </span>
+            </div>
+          ) : null}
         </div>
 
         {/* With Controls (lead) → reduction → Without Controls (counterfactual) */}

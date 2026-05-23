@@ -1,0 +1,59 @@
+{
+  "triples": [
+    { "h": "Org:GFH_Bank",                    "r": "operates_in",       "t": "Jurisdiction:Bahrain",                      "source": "agent_catalog" },
+    { "h": "Org:GFH_Bank",                    "r": "regulated_by",      "t": "Regulator:CBB",                              "source": "agent_catalog" },
+    { "h": "Regulator:CBB",                   "r": "issues",            "t": "Framework:CBB_Rulebook_Vol2",                "source": "agent_catalog" },
+    { "h": "Framework:CBB_Rulebook_Vol2",     "r": "contains_module",   "t": "Module:HC",                                  "source": "agent_catalog" },
+    { "h": "Framework:CBB_Rulebook_Vol2",     "r": "contains_module",   "t": "Module:BC",                                  "source": "agent_catalog" },
+    { "h": "Framework:CBB_Rulebook_Vol2",     "r": "contains_module",   "t": "Module:FC",                                  "source": "agent_catalog" },
+    { "h": "Framework:CBB_Rulebook_Vol2",     "r": "contains_module",   "t": "Module:AML",                                 "source": "agent_catalog" },
+    { "h": "Framework:AAOIFI_GS",             "r": "contains_standard", "t": "Standard:GS-19_SSB_Appointment",             "source": "agent_catalog" },
+    { "h": "Framework:AAOIFI_GS",             "r": "contains_standard", "t": "Standard:GS-20_SSB_Functions",               "source": "agent_catalog" },
+    { "h": "Framework:AAOIFI_GS",             "r": "contains_standard", "t": "Standard:GS-21_SSB_Review",                  "source": "agent_catalog" },
+    { "h": "Org:GFH_Bank",                    "r": "aligns_to",         "t": "Framework:AAOIFI_GS",                        "source": "agent_catalog" },
+    { "h": "Org:GFH_Bank",                    "r": "aligns_to",         "t": "Framework:CBB_Rulebook_Vol2",                "source": "agent_catalog" },
+
+    { "h": "Org:GFH_Bank",                    "r": "deploys",           "t": "Agent:GFH AI Assistant",                     "source": "agent_catalog" },
+    { "h": "Org:GFH_Bank",                    "r": "deploys",           "t": "Agent:Khaleeji Banking Support",             "source": "agent_catalog" },
+    { "h": "Org:GFH_Bank",                    "r": "deploys",           "t": "Agent:Onboarding Concierge",                 "source": "agent_catalog" },
+    { "h": "Org:GFH_Bank",                    "r": "deploys",           "t": "Agent:Relationship Manager Copilot",         "source": "agent_catalog" },
+
+    { "h": "Agent:GFH AI Assistant",          "r": "serves_on",         "t": "Channel:Voice + chat",                       "source": "agent_catalog" },
+    { "h": "Agent:GFH AI Assistant",          "r": "scoped_by",         "t": "ScopeFile:gfh_bank.md",                      "source": "agent_catalog" },
+    { "h": "Agent:GFH AI Assistant",          "r": "may_call",          "t": "Tool:account_lookup",                        "source": "agent_catalog" },
+    { "h": "Agent:GFH AI Assistant",          "r": "may_call",          "t": "Tool:portfolio_balance",                     "source": "agent_catalog" },
+    { "h": "Agent:GFH AI Assistant",          "r": "may_call",          "t": "Tool:product_info",                          "source": "agent_catalog" },
+    { "h": "Agent:GFH AI Assistant",          "r": "may_call",          "t": "Tool:schedule_callback",                     "source": "agent_catalog" },
+    { "h": "Agent:GFH AI Assistant",          "r": "restricted_from",   "t": "Tool:execute_trade",                         "source": "agent_catalog" },
+    { "h": "Agent:GFH AI Assistant",          "r": "restricted_from",   "t": "Tool:personalized_investment_advice",        "source": "agent_catalog" },
+    { "h": "Agent:GFH AI Assistant",          "r": "restricted_from",   "t": "Tool:wire_transfer_initiate",                "source": "agent_catalog" },
+
+    { "h": "Agent:Khaleeji Banking Support",  "r": "serves_on",         "t": "Channel:Chat + voice",                       "source": "agent_catalog" },
+    { "h": "Agent:Khaleeji Banking Support",  "r": "scoped_by",         "t": "ScopeFile:gfh_bank.md",                      "source": "agent_catalog" },
+    { "h": "Agent:Khaleeji Banking Support",  "r": "may_call",          "t": "Tool:account_lookup",                        "source": "agent_catalog" },
+    { "h": "Agent:Khaleeji Banking Support",  "r": "may_call",          "t": "Tool:transaction_history",                   "source": "agent_catalog" },
+    { "h": "Agent:Khaleeji Banking Support",  "r": "may_call",          "t": "Tool:card_status",                           "source": "agent_catalog" },
+    { "h": "Agent:Khaleeji Banking Support",  "r": "restricted_from",   "t": "Tool:wire_transfer_initiate",                "source": "agent_catalog" },
+    { "h": "Agent:Khaleeji Banking Support",  "r": "restricted_from",   "t": "Tool:override_limit",                        "source": "agent_catalog" },
+
+    { "h": "Agent:Onboarding Concierge",      "r": "serves_on",         "t": "Channel:Chat",                               "source": "agent_catalog" },
+    { "h": "Agent:Onboarding Concierge",      "r": "scoped_by",         "t": "ScopeFile:gfh_bank.md",                      "source": "agent_catalog" },
+    { "h": "Agent:Onboarding Concierge",      "r": "may_call",          "t": "Tool:kyc_status",                            "source": "agent_catalog" },
+    { "h": "Agent:Onboarding Concierge",      "r": "may_call",          "t": "Tool:schedule_appointment",                  "source": "agent_catalog" },
+    { "h": "Agent:Onboarding Concierge",      "r": "may_call",          "t": "Tool:escalate_compliance",                   "source": "agent_catalog" },
+    { "h": "Agent:Onboarding Concierge",      "r": "restricted_from",   "t": "Tool:account_open",                          "source": "agent_catalog" },
+    { "h": "Agent:Onboarding Concierge",      "r": "restricted_from",   "t": "Tool:credit_decision",                       "source": "agent_catalog" },
+
+    { "h": "Agent:Relationship Manager Copilot", "r": "serves_on",      "t": "Channel:Internal",                           "source": "agent_catalog" },
+    { "h": "Agent:Relationship Manager Copilot", "r": "scoped_by",      "t": "ScopeFile:gfh_bank.md",                      "source": "agent_catalog" },
+    { "h": "Agent:Relationship Manager Copilot", "r": "may_call",       "t": "Tool:portfolio_balance",                     "source": "agent_catalog" },
+    { "h": "Agent:Relationship Manager Copilot", "r": "may_call",       "t": "Tool:draft_proposal",                        "source": "agent_catalog" },
+    { "h": "Agent:Relationship Manager Copilot", "r": "restricted_from","t": "Tool:execute_trade",                         "source": "agent_catalog" },
+    { "h": "Agent:Relationship Manager Copilot", "r": "restricted_from","t": "Tool:override_suitability",                  "source": "agent_catalog" },
+
+    { "h": "ScopeFile:gfh_bank.md",           "r": "anchored_in",       "t": "Framework:CBB_Rulebook_Vol2",                "source": "agent_catalog" },
+    { "h": "ScopeFile:gfh_bank.md",           "r": "anchored_in",       "t": "Framework:AAOIFI_GS",                        "source": "agent_catalog" },
+    { "h": "ScopeFile:gfh_bank.md",           "r": "reviewed_by",       "t": "SSB:Sharia_Supervisory_Board",               "source": "agent_catalog" },
+    { "h": "SSB:Sharia_Supervisory_Board",    "r": "governed_by",       "t": "Standard:GS-20_SSB_Functions",               "source": "agent_catalog" }
+  ]
+}

@@ -102,9 +102,19 @@ export function RiskNotificationRail({ data, navigate, currentView }) {
   };
 
   // Don't show the trigger pill on the Live Activity view itself — it's the
-  // same data and the floating UI would compete with the inspector.
-  const hidePill = currentView === 'telemetry';
+  // same data and the floating UI would compete with the inspector. Also
+  // hide on the Reports/Posture views (the report is the artifact a
+  // recipient may see) and on any `?share=` URL so the external-evidence
+  // view stays clean. Pathname check covers the route-naming drift between
+  // currentView state and the actual URL segment.
+  const path = typeof window !== 'undefined' ? window.location.pathname : '';
+  const search = typeof window !== 'undefined' ? window.location.search : '';
+  const isShareUrl = search.includes('share=');
+  const isReportsPath = /\/reports(?:\/|$)/.test(path);
+  const isPostureView = currentView === 'posture-report' || currentView === 'reports' || currentView === 'history' || currentView === 'risk';
+  const hidePill = currentView === 'telemetry' || isPostureView || isReportsPath || isShareUrl;
 
+  if (hidePill) return null;
   if (highRisk.length === 0 && !open) return null;
 
   return (

@@ -129,15 +129,7 @@ export default function App() {
   const { isSignedIn } = useUser();
 
   const loadData = useCallback(async () => {
-    if (isSignedIn) {
-      // Tenant-clean default: zero data. Backend org-scoped feeds
-      // (Phase 3 wiring) populate views that consume `useVoiceToken`
-      // directly (PostureReportView live panel, CiRunsPanel).
-      setData(EMPTY_DATA);
-      setReportData(null);
-      setLoading(false);
-      return;
-    }
+    // OS26 demo: always load fixtures regardless of sign-in state.
     try {
       const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.BASE_URL !== '/' ? import.meta.env.BASE_URL.replace(/\/$/, '') : '');
       const isProdApp = import.meta.env.VITE_APP_MODE === 'production';
@@ -165,7 +157,6 @@ export default function App() {
 
       // Normalize API field names
       let events = (eventsResp.events || eventsResp || [])
-        .filter(e => knownAgents.has(e.agent || e.agent_id))
         .map(e => ({
           ...e,
           agent: e.agent || e.agent_id,
@@ -186,7 +177,6 @@ export default function App() {
       }
 
       let agentsList = (agentsResp.agents || agentsResp || [])
-        .filter(a => knownAgents.has(a.id || a.agent_id))
         .map(a => {
           const id = a.id || a.agent_id;
           return {

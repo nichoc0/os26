@@ -5,11 +5,11 @@
     "vertical": "Pharmacy. Outpatient retail. Non-clinical intake routing; clinical questions escalated to a licensed pharmacist."
   },
   "period": {
-    "start": "2026-04-08",
-    "end": "2026-05-10"
+    "start": "2026-04-17",
+    "end": "2026-05-17"
   },
-  "reportId": "BASTION-ATT-2026-05-10-DEMO",
-  "generatedAt": "2026-05-10",
+  "reportId": "BASTION-ATT-2026-05-17-DEMO",
+  "generatedAt": "2026-05-17",
   "posture": "baseline",
   "applicableFrameworks": [
     "fda-pccp",

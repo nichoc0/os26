@@ -1,1 +1,1 @@
-{"total_events":41,"total_cost_usd":0.3824,"total_tokens_input":29312,"total_tokens_output":8310,"total_flags":7,"total_blocks":2,"unique_agents":6,"total_agents_tracked":6,"total_actions_monitored":41}
+{"total_events":380,"total_cost_usd":0.7508,"total_tokens_input":78420,"total_tokens_output":25500,"total_flags":34,"total_blocks":22,"unique_agents":6,"total_agents_tracked":6,"total_actions_monitored":380,"pii_exposures":32,"fleet_risk":20.0}

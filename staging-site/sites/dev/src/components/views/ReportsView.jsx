@@ -19,14 +19,14 @@ import { fleetReportFixture } from '../../data/fleetReportFixture';
 
 const REPORTS = [
     {
-        id: 'posture-maple-pharmacy-2026-05-10',
+        id: 'posture-maple-pharmacy-2026-05-17',
         type: 'posture',
         title: 'Posture Report',
         customer: 'Demo Pharmacy',
         customerSlug: 'maple-pharmacy',
-        generatedAt: '2026-05-10',
-        period: '2026-05-10',
-        reportId: 'BASTION-ATT-2026-05-10-DEMO',
+        generatedAt: '2026-05-17',
+        period: '2026-04-17 → 2026-05-17',
+        reportId: 'BASTION-ATT-2026-05-17-DEMO',
         probes: 56,
         violations: 4,
         refusals: 2,
@@ -34,14 +34,14 @@ const REPORTS = [
         status: 'live',
     },
     {
-        id: 'underwriting-acme-2026-05-08',
+        id: 'underwriting-acme-2026-05-17',
         type: 'underwriting',
         title: 'Underwriting Report',
         customer: 'Acme Logistics',
         customerSlug: 'acme-logistics',
-        generatedAt: '2026-05-08',
-        period: '2025-10-01 → 2026-03-25',
-        reportId: 'BASTION-UW-2026-05-ACME',
+        generatedAt: '2026-05-17',
+        period: '2026-04-17 → 2026-05-17',
+        reportId: 'BASTION-UW-2026-05-17-ACME',
         probes: 247,
         violations: 8,
         refusals: 184,
@@ -58,7 +58,15 @@ const TYPE_META = {
 export default function ReportsView({ data, navigate, tabRequest = null }) {
     const persona = usePersona();
     const isTenant = useIsTenant();
-    const [open, setOpen] = useState(null);
+    // When the URL carries ?share=TOKEN, jump straight into the posture
+    // report detail (Vanta Trust Center pattern — recipient lands on the
+    // doc, not the Reports list).
+    const [open, setOpen] = useState(() => {
+        if (typeof window === 'undefined') return null;
+        const p = new URLSearchParams(window.location.search);
+        if (!p.get('share')) return null;
+        return REPORTS.find((r) => r.type === 'posture') || null;
+    });
     const [view, setView] = useState('grid');
     const [query, setQuery] = useState('');
     const [tab, setTab] = useState('reports'); // 'reports' | 'history' | 'risk'

@@ -45,6 +45,38 @@ export const PERSONA_CONFIG = {
         targetDID: '+1 555 555 0001',
         tagline: 'Insurance-anchored. Carrier coverage + risk-score add-on enabled.',
     },
+    // GFH Bank — Bahraini Islamic investment bank (rebranded April 2026
+    // from GFH Financial Group). Demo persona aimed at the digital-
+    // banking + compliance buyer; the customer-facing AI fleet is
+    // anchored on the real GFH AI Assistant (in-app voice + chat) plus
+    // the Khaleeji Banking servicing surface and the Binance Pay
+    // integration. Framework anchors are CBB Rulebook Volume 2 + AAOIFI
+    // Governance Standards GS-19/20/21. Per-customer Posture Report
+    // content lives at public/static-api/customers/gfh-bank/report.json
+    // and the agent roster lives in src/data/agentCatalog.js under the
+    // 'gfh-bank' key. Branding chip metadata below is consumed by
+    // CustomerOrgBadge when a real Clerk org with this slug is active.
+    'gfh-bank': {
+        slug: 'gfh-bank',
+        // Clerk org IDs that resolve to this persona regardless of the
+        // org's slug (orgs created without a slug still match here).
+        // Add more ids as additional GFH-shaped Clerk orgs are created.
+        orgIds: ['org_3E8GNTJf6v1Dr9jnU5IBqq6whvo'],
+        label: 'GFH Bank',
+        vertical: 'Islamic Investment Banking',
+        frameworks: ['CBB Rulebook Vol 2', 'AAOIFI GS', 'NIST AI RMF', 'ISO/IEC 42001'],
+        reportSlug: 'gfh-bank',
+        addOns: { insurance: false, fda: false },
+        targetAgent: 'GFH AI Assistant (investment app)',
+        targetDID: '+973 1750 8000',
+        tagline: 'Sharia-compliant digital banking. CBB-anchored attestation.',
+        brand: {
+            name: 'GFH Bank',
+            logoUrl: 'https://logo.clearbit.com/gfh.com',
+            primaryColor: '#0f3a5a',
+            hook: 'Bastion monitors GFH\'s customer-facing AI fleet — GFH AI Assistant, Khaleeji Banking, Binance Pay — with continuous CBB + AAOIFI attestation.',
+        },
+    },
     // Savio Labs — multi-tenant demo org. Savio Labs attests downstream
     // clients themselves, so this org slot showcases what a Bastion
     // *reseller* sees: their own org + the ability to switch in and
@@ -80,9 +112,23 @@ export function usePersona() {
     const { organization, isLoaded } = useOrganization();
     if (!isLoaded) return PERSONA_CONFIG[DEFAULT_PERSONA_SLUG];
 
-    // Match by slug first (canonical), then fall back to a normalized
-    // name match so an org named "Maple Ridge Pharmacy" without a
-    // configured slug still resolves cleanly.
+    // Match priority:
+    //   1. orgIds[] (Clerk org ID) — survives orgs created without a
+    //      configured slug, and gives the operator a way to bind a
+    //      specific Clerk org to a persona without renaming it.
+    //   2. slug — canonical match for orgs with a clean slug set.
+    //   3. normalized org name — defensive fallback so an org named
+    //      "Maple Ridge Pharmacy" without a configured slug still
+    //      resolves cleanly.
+    const orgId = organization?.id || null;
+    if (orgId) {
+        for (const persona of Object.values(PERSONA_CONFIG)) {
+            if (Array.isArray(persona.orgIds) && persona.orgIds.includes(orgId)) {
+                return persona;
+            }
+        }
+    }
+
     const slug = (organization?.slug || '').toLowerCase();
     if (slug && PERSONA_CONFIG[slug]) return PERSONA_CONFIG[slug];
 

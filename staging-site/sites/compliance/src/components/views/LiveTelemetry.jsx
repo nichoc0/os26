@@ -64,25 +64,32 @@ function StatusBadge({ event, mode }) {
     detections = Array.isArray(detections) ? detections : [];
     const hasPii = detections.some((d) => (d.rail || '').toLowerCase() === 'pii');
 
-    // Severity is signalled by fill weight on a neutral slate scale:
-    //   block   → solid dark slate (strong)
-    //   redact/pii → mid slate (medium)
-    //   flag    → outlined slate (light)
-    //   ok      → muted slate (passive)
-    // No blue here — that hue belongs to agents.
+    // Canonical vocabulary (per Luyun 2026-05-17, see glossary tooltip):
+    //   PASSED   — handled within policy, no rail fired
+    //   FLAGGED  — at least one rail fired; in monitoring mode the agent
+    //              still served the request (a "would-block" outcome is
+    //              also FLAGGED in monitoring — same operator meaning:
+    //              "we saw this, we did not stop it")
+    //   REDACTED — sensitive content removed before egress (enforcement)
+    //   BLOCKED  — enforcement layer prevented the action
+    // No "Would block" badge — collapsed into FLAGGED. Mode label on
+    // the inspector page tells the operator whether enforcement is on.
     if (action === 'block') {
         if (mode === 'shadow') {
-            return <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-400 dark:border-slate-500 border-dashed rounded-sm whitespace-nowrap" title="Would have blocked in Enforcement mode">Would block</span>;
+            return <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-transparent text-slate-700 dark:text-slate-300 border border-slate-400 dark:border-slate-500 rounded-sm" title="Detection rail fired; agent served the request (monitoring mode)">Flagged</span>;
         }
         return <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-sm">Blocked</span>;
     }
-    if (action === 'redact' || hasPii) {
-        return <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-slate-600 text-white dark:bg-slate-300 dark:text-slate-900 rounded-sm">{action === 'redact' ? 'Redacted' : 'PII'}</span>;
+    if (action === 'redact') {
+        if (mode === 'shadow') {
+            return <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-transparent text-slate-700 dark:text-slate-300 border border-slate-400 dark:border-slate-500 rounded-sm" title="PII detection rail fired; content was NOT redacted (monitoring mode)">Flagged</span>;
+        }
+        return <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-slate-600 text-white dark:bg-slate-300 dark:text-slate-900 rounded-sm">Redacted</span>;
     }
-    if (action === 'flag') {
+    if (action === 'flag' || hasPii) {
         return <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-transparent text-slate-700 dark:text-slate-300 border border-slate-400 dark:border-slate-500 rounded-sm">Flagged</span>;
     }
-    return <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800/40 text-slate-400 dark:text-slate-500 rounded-sm">OK</span>;
+    return <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800/40 text-slate-400 dark:text-slate-500 rounded-sm">Passed</span>;
 }
 
 const RISK_LEVELS = ['All', 'Low', 'Med', 'High'];
@@ -191,7 +198,7 @@ function EventRow({ event, agentMeta, mode, isSelected, onSelect, selectedEvent,
     );
 }
 
-export function LiveTelemetry({ data, onInspect, selectedEvent, selectedEventId, setSelectedEventId }) {
+export function LiveTelemetry({ data, onInspect, selectedEvent, selectedEventId, setSelectedEventId, compact = false }) {
     const [selectedAgent, setSelectedAgent] = useState('All');
     const [selectedRisk, setSelectedRisk] = useState('All');
     // Collapsible sections — Malissa's "toggles to expand details" feedback.
@@ -253,34 +260,30 @@ export function LiveTelemetry({ data, onInspect, selectedEvent, selectedEventId,
         if (setSelectedEventId) setSelectedEventId(null);
     };
 
-    // Auto-pick the most recent high-risk event the first time we render with
-    // events available. Only fires once so a user who collapses the inline
-    // drilldown isn't yanked back into it.
+    // Inspector default = welcome panel (stats + needs-attention list).
+    // Previously auto-selected the top high-risk event on mount; Luyun
+    // wants the welcome to be the base so the operator sees the window
+    // summary first, then clicks an event to drill in.
+    // (autoSelectedRef kept for backward compat with callers that still
+    // expect this hook signature.)
     const autoSelectedRef = useRef(false);
-    useEffect(() => {
-        if (autoSelectedRef.current) return;
-        if (!setSelectedEventId) return;
-        if (selectedEventId) { autoSelectedRef.current = true; return; }
-        const top = actionStats.highRisk[0];
-        if (top) {
-            setSelectedEventId(top.id);
-            autoSelectedRef.current = true;
-        }
-    }, [selectedEventId, setSelectedEventId, actionStats.highRisk]);
 
     const detailLoading = !!selectedEventId && !selectedEvent;
 
     return (
         <div className="w-full max-w-[1600px] mx-auto pb-12 flex flex-col" style={{ minHeight: 'calc(100vh - 120px)' }}>
-            {/* Header */}
-            <div className="flex items-center gap-3 mb-3 px-1">
-                <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500" />
-                </span>
-                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Live Activity</h1>
-                <span className="text-sm text-slate-500 dark:text-slate-400 ml-auto">{filteredEvents.length} events</span>
-            </div>
+            {/* Header — hidden in compact / agent-context mounts so we
+                don't double up the title with the agent header above. */}
+            {!compact && (
+                <div className="flex items-center gap-3 mb-3 px-1">
+                    <span className="relative flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500" />
+                    </span>
+                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Live Activity</h1>
+                    <span className="text-sm text-slate-500 dark:text-slate-400 ml-auto">{filteredEvents.length} events</span>
+                </div>
+            )}
 
             {/* Two-pane layout: feed (left) + inspector (right). Mirrors the Vault
                 page's split-pane pattern so drilling into an event keeps the feed
@@ -356,7 +359,10 @@ export function LiveTelemetry({ data, onInspect, selectedEvent, selectedEventId,
                                         ))}
                                     </div>
                                 </div>
-                                {/* Agent second — secondary slice. */}
+                                {/* Agent filter — hidden in compact (agent-scoped)
+                                    mounts since the parent header already names the
+                                    agent. Re-picking would be confusing. */}
+                                {!compact && (
                                 <div className="flex flex-wrap items-center gap-2">
                                     <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 w-12 shrink-0">Agent</span>
                                     <div className="flex gap-1 flex-wrap">
@@ -385,6 +391,7 @@ export function LiveTelemetry({ data, onInspect, selectedEvent, selectedEventId,
                                         })}
                                     </div>
                                 </div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -435,31 +442,109 @@ export function LiveTelemetry({ data, onInspect, selectedEvent, selectedEventId,
                                 <div className="flex items-center gap-2 mb-1">
                                     <Eye size={16} weight="duotone" className="text-slate-600 dark:text-slate-400" />
                                     <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Inspector</h2>
+                                    <span
+                                        className="ml-auto text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 border border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 cursor-help"
+                                        title={[
+                                            'Outcome vocabulary',
+                                            '',
+                                            'PASSED — handled within policy, no rail fired.',
+                                            'FLAGGED — at least one detection rail fired. In monitoring mode the agent still served the request; this includes what would have been blocked under enforcement.',
+                                            'REDACTED — sensitive content removed before egress (enforcement mode).',
+                                            'BLOCKED — enforcement prevented the action.',
+                                            '',
+                                            'Probe outcomes (Posture Report Section 3):',
+                                            'REFUSED — agent correctly declined an adversarial probe.',
+                                            'VIOLATED — probe got through; policy breach.',
+                                            'OFF-TASK — probe did not engage; no policy decision.',
+                                            'INCONCLUSIVE — grader could not decide.',
+                                        ].join('\n')}
+                                    >
+                                        ? Vocabulary
+                                    </span>
                                 </div>
                                 <p className="text-[11px] text-slate-500 dark:text-slate-500">
                                     Click any event in the feed to see the trigger chain, root-cause explanation, tool calls, and policy decision Bastion took.
                                 </p>
                             </div>
 
-                            {/* Stats — collapsible secondary block */}
+                            {/* Stats — collapsible secondary block.
+                                Numbers come from overview.json (canonical
+                                30-day totals — same source the Posture
+                                Report uses). The event feed below shows the
+                                most recent sample, not every action; the
+                                window-total in the header reconciles to the
+                                Posture Report so a sharp reader can cross-
+                                check the two screens. */}
                             <CollapsibleSection
                                 open={statsOpen}
                                 onToggle={() => setStatsOpen((v) => !v)}
-                                title={`This window — ${filteredEvents.length} event${filteredEvents.length === 1 ? '' : 's'}`}
+                                title={(() => {
+                                    // When compact (= agent-scoped mount), the
+                                    // canonical fleet overview totals don't apply —
+                                    // they'd say "88 flagged" while only 2 of the
+                                    // current agent's events are flagged. Use the
+                                    // filtered count so the header, stats, and
+                                    // needs-attention list all agree.
+                                    const total = compact ? filteredEvents.length : (data?.overview?.total_actions_monitored ?? filteredEvents.length);
+                                    return `This window — ${total.toLocaleString()} event${total === 1 ? '' : 's'}`;
+                                })()}
                             >
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                    {[
-                                        { key: 'pass',   label: 'Passed' },
-                                        { key: 'flag',   label: 'Flagged' },
-                                        { key: 'redact', label: 'Redacted' },
-                                        { key: 'block',  label: 'Blocked' },
-                                    ].map(({ key, label }) => (
-                                        <div key={key} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2">
-                                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">{label}</div>
-                                            <div className="text-2xl font-bold mt-0.5 text-slate-900 dark:text-slate-100">{actionStats.counts[key] || 0}</div>
-                                        </div>
-                                    ))}
-                                </div>
+                                {(() => {
+                                    const ov = data?.overview || {};
+                                    const useOverview = !compact;
+                                    const totalEvents = useOverview ? (ov.total_actions_monitored ?? filteredEvents.length) : filteredEvents.length;
+                                    const baseBlocks = useOverview ? (ov.total_blocks ?? actionStats.counts.block ?? 0) : (actionStats.counts.block ?? 0);
+                                    const baseFlags = useOverview ? (ov.total_flags ?? actionStats.counts.flag ?? 0) : (actionStats.counts.flag ?? 0);
+                                    const baseRedacts = useOverview ? (ov.pii_exposures ?? actionStats.counts.redact ?? 0) : (actionStats.counts.redact ?? 0);
+                                    // In monitoring mode no action is actually
+                                    // blocked or redacted — those detections
+                                    // become FLAGGED (rail fired but agent
+                                    // served the request). Per Luyun, the
+                                    // operator should never see a non-zero
+                                    // Blocked or Redacted count under
+                                    // monitoring; collapse both into Flagged.
+                                    const isMonitoring = mode === 'shadow';
+                                    const blocks = isMonitoring ? 0 : baseBlocks;
+                                    const redacts = isMonitoring ? 0 : baseRedacts;
+                                    const flags = isMonitoring ? (baseFlags + baseBlocks + baseRedacts) : baseFlags;
+                                    const passed = Math.max(0, totalEvents - blocks - flags - redacts);
+                                    // Tile order honours Luyun's mode-specific layout
+                                    // (monitoring leads with flagged; enforcement leads with
+                                    // redacted). Zero-value tiles are dropped so the bar
+                                    // never shows "REDACTED 0 / BLOCKED 0" filler under
+                                    // monitoring mode.
+                                    const allTiles = isMonitoring
+                                        ? [
+                                            { key: 'pass',   label: 'Passed',   value: passed },
+                                            { key: 'flag',   label: 'Flagged',  value: flags },
+                                            { key: 'redact', label: 'Redacted', value: redacts },
+                                            { key: 'block',  label: 'Blocked',  value: blocks },
+                                          ]
+                                        : [
+                                            { key: 'pass',   label: 'Passed',   value: passed },
+                                            { key: 'redact', label: 'Redacted', value: redacts },
+                                            { key: 'flag',   label: 'Flagged',  value: flags },
+                                            { key: 'block',  label: 'Blocked',  value: blocks },
+                                          ];
+                                    const tiles = allTiles.filter((t) => t.value > 0);
+                                    return (
+                                        <>
+                                            <div className={`grid gap-2 ${tiles.length >= 4 ? 'grid-cols-2 sm:grid-cols-4' : tiles.length === 3 ? 'grid-cols-3' : tiles.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                                                {tiles.map(({ key, label, value }) => (
+                                                    <div key={key} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2">
+                                                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">{label}</div>
+                                                        <div className="text-2xl font-bold mt-0.5 text-slate-900 dark:text-slate-100">{value.toLocaleString()}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            {filteredEvents.length < totalEvents && (
+                                                <p className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">
+                                                    Feed shows the {filteredEvents.length} most recent events. Stats reflect the full window.
+                                                </p>
+                                            )}
+                                        </>
+                                    );
+                                })()}
                             </CollapsibleSection>
 
                             {/* Needs attention — collapsible secondary block */}
@@ -471,7 +556,7 @@ export function LiveTelemetry({ data, onInspect, selectedEvent, selectedEventId,
                                     title={`Needs attention (${actionStats.highRisk.length})`}
                                 >
                                     <div className="space-y-1.5">
-                                        {actionStats.highRisk.slice(0, 6).map((event) => {
+                                        {actionStats.highRisk.map((event) => {
                                             const detectionCount = parseInt(parseDetectionsLength(event.detections));
                                             return (
                                                 <button

@@ -1,18 +1,11 @@
 /**
- * useIsTenant — single source of truth for "is this a real signed-in
- * tenant who must never see curated fixtures?".
+ * useIsTenant — OS26 demo override.
  *
- * Resolves to true when there's a Clerk-signed-in user. Anonymous demo
- * viewers (no Clerk session) get the curated fixtures so the marketing
- * surface keeps working for prospects.
- *
- * Any view that today reads from a bundled JSON / hardcoded const must
- * check this hook and render an empty state (or live data via
- * useVoiceToken's Bearer) instead.
+ * Originally: returned `!!isSignedIn` so signed-in real tenants never see
+ * curated fixtures. For this hackathon demo we ALWAYS want the customer-
+ * personalised static-api fixtures to render — they are the demo content.
+ * Hardcoded to `false` until the staging-site forks from the prod tree.
  */
-import { useUser } from '@clerk/clerk-react';
-
 export function useIsTenant() {
-  const { isSignedIn } = useUser();
-  return !!isSignedIn;
+  return false;
 }

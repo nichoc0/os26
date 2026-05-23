@@ -24,7 +24,30 @@ function staticFallbackUrl(path) {
 
 const IS_PROD_APP = import.meta.env.VITE_APP_MODE === 'production';
 
-async function getJson(path, { signal } = {}) {
+function perCustomerStaticUrl(path, customerSlug) {
+  // /api/kg/triples → /static-api/customers/<slug>/kg-triples.json
+  const noQuery = path.split('?')[0];
+  if (STATIC_OVERRIDES[noQuery]) {
+    const flat = STATIC_OVERRIDES[noQuery].replace(/^\/static-api/, `/static-api/customers/${customerSlug}`);
+    return `${API_BASE}${flat}`;
+  }
+  const stripped = noQuery.replace(/^\/api/, '');
+  return `${API_BASE}/static-api/customers/${customerSlug}${stripped}.json`;
+}
+
+async function getJson(path, { signal, customerSlug } = {}) {
+  // Per-customer static override first when slug provided. Vercel
+  // rewrites map every /api/* to the global static seed; without this
+  // pre-check the org-scoped fixture never loads.
+  if (customerSlug && customerSlug !== 'maple-pharmacy') {
+    try {
+      const r = await fetch(perCustomerStaticUrl(path, customerSlug), { signal, headers: { Accept: 'application/json' } });
+      if (r.ok) {
+        const ct = r.headers.get('content-type') || '';
+        if (ct.includes('application/json')) return await r.json();
+      }
+    } catch {}
+  }
   try {
     const res = await fetch(`${API_BASE}${path}`, { signal, headers: { Accept: 'application/json' } });
     const ct = res.headers.get('content-type') || '';
@@ -96,10 +119,10 @@ export const useSessionStore = create((set, get) => ({
     }
   },
 
-  fetchKg: async () => {
+  fetchKg: async (customerSlug = null) => {
     set({ kgLoading: true, kgError: null });
     try {
-      const data = await getJson('/api/kg/triples?ns=demo&limit=500');
+      const data = await getJson('/api/kg/triples?ns=demo&limit=500', { customerSlug });
       // Expected shape: { triples: [{h, r, t, confidence, source, ingested_at}, ...] }
       const triples = Array.isArray(data?.triples) ? data.triples : [];
       set({ kgTriples: triples, kgLoading: false });

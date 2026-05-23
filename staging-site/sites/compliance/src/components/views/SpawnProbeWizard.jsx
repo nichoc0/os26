@@ -222,7 +222,7 @@ export default function SpawnProbeWizard({ setCurrentView }) {
                     <div>
                         <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">Spawn QA Probe</h1>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                            Pick the agent under test, confirm the Promptfoo plugin family, fan out N agents against the target voice agent. Results land in Reports.
+                            Pick the agent under test, confirm the probe family, fan out N agents against the target voice agent. Results land in Reports.
                         </p>
                     </div>
                 </div>
@@ -307,7 +307,7 @@ function VerticalStep({ onPick }) {
     return (
         <div>
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 mb-1">Pick an agent</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">Each agent type resolves to a curated Promptfoo plugin family tailored for voice testing.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">Each agent type resolves to a curated probe family tailored for voice testing.</p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {VERTICALS.map((v) => {
                     const Icon = v.icon;
@@ -359,7 +359,7 @@ function PluginsStep({ vertical, selectedPlugins, onToggle, selectedStrategies, 
                 {vertical.label} plugin family
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">
-                Pulled from Promptfoo's <code className="font-mono text-[10px] px-1 bg-slate-100 dark:bg-slate-800 rounded">{vertical.id}:*</code> + related families. Uncheck any plugin you don't want to run.
+                Pulled from the <code className="font-mono text-[10px] px-1 bg-slate-100 dark:bg-slate-800 rounded">{vertical.id}:*</code> + related families. Uncheck any plugin you don't want to run.
             </p>
 
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 mb-6">

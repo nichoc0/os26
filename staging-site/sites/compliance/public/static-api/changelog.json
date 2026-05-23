@@ -13,9 +13,9 @@
     "date": "2026-05-08",
     "title": "Posture Report",
     "items": [
-      "Executive-grade attestation document generated per assessment cycle — anchored on FDA PCCP (Dec 2024 final guidance), ISO 14971, and HIPAA Security Rule with an explicit excluded-frameworks table for NIST AI RMF, EU AI Act Art. 12, SOC 2 CC7.2, and SR 11-7",
-      "Section-by-section coverage of Description of Modifications, Modification Protocol, Impact Assessment, and Real-world performance monitoring — every claim ties back to a verifiable run id in the AdversarialResult corpus",
-      "Weekly probe cadence, violation-rate trend, and prior-period comparison rendered for the underwriter; 247 probes graded across 4 hazard categories this period",
+      "Executive-grade attestation document generated per assessment cycle — anchored on HIPAA Security Rule (§164.308, §164.312(a)(1), §164.530(b)), ISO 14971, and FDA AI/ML guidance, with an explicit excluded-frameworks table for the frameworks not load-bearing for this customer",
+      "Section-by-section coverage of System Description, Regulatory Framework Mapping, Adversarial Assessment Results, Runtime Observations, Risk Assessment, Audit Trail, and Period Comparison — every claim ties back to a verifiable run id",
+      "Weekly probe cadence, violation-rate trend, and prior-period comparison rendered for the underwriter; 390 probes graded across multiple hazard categories this period",
       "Locked visual contract: single typeface (Inter), monochrome article body, icons reserved to page chrome — print-clean for board and CISO review"
     ]
   },

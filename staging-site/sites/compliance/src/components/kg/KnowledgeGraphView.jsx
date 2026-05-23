@@ -7,6 +7,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { Graph, ArrowsClockwise } from '@phosphor-icons/react';
 import { useSessionStore } from '../../store/sessionStore';
+import { getAgentById } from '../../data/agentCatalog';
+import { usePersona } from '../../store/personaStore';
 
 const ENTITY_TYPES = [
   'Agent', 'Tool', 'Policy', 'Control', 'DataSource',
@@ -108,10 +110,47 @@ function buildGraph(triples, filterTypes, filterSources) {
   return { nodes: Array.from(nodeMap.values()), links };
 }
 
-export default function KnowledgeGraphView({ embedded = false, onSelectNode } = {}) {
+export default function KnowledgeGraphView({ embedded = false, onSelectNode, agentId = null, agentLabel = null } = {}) {
+  const persona = usePersona();
+  const personaSlug = persona?.slug || 'maple-pharmacy';
   const baseTriples = useSessionStore((s) => s.kgTriples);
   const findingTriples = useSessionStore((s) => s.findingTriples);
-  const triples = useMemo(() => [...baseTriples, ...findingTriples], [baseTriples, findingTriples]);
+  const allTriples = useMemo(() => [...baseTriples, ...findingTriples], [baseTriples, findingTriples]);
+
+  // Agent-scoped subgraph: when an agent id is provided, restrict
+  // triples to those whose head/tail/relation mention the agent id or
+  // label (substring match). If the natural match yields a thin
+  // subgraph (< 5 distinct nodes), synthesize a per-agent skeleton
+  // showing channel + allowed/restricted tools + scope file + the
+  // load-bearing frameworks so the graph is never one disconnected
+  // dot per agent. Empty agentId = full graph (no filter, no synth).
+  const triples = useMemo(() => {
+    if (!agentId) return allTriples;
+    const needles = [agentId, agentLabel].filter(Boolean).map((s) => String(s).toLowerCase());
+    const hit = (s) => {
+      if (!s) return false;
+      const v = String(s).toLowerCase();
+      return needles.some((n) => v.includes(n));
+    };
+    const natural = allTriples.filter((t) => hit(t.h) || hit(t.t) || hit(t.r));
+    const distinctNodes = new Set();
+    for (const t of natural) { distinctNodes.add(t.h); distinctNodes.add(t.t); }
+    if (distinctNodes.size >= 5) return natural;
+    // Synthesize a per-agent skeleton (>= 7 edges) so the subgraph is
+    // always readable. Uses the canonical AGENT_CATALOG entry.
+    const a = getAgentById(personaSlug, agentId);
+    if (!a) return natural;
+    const head = `Agent:${a.label}`;
+    const synth = [
+      { h: head, t: `Channel:${a.channel}`,        r: 'serves_on',       source: 'agent_catalog' },
+      { h: head, t: 'ScopeFile:demo_pharmacy.md', r: 'scoped_by',       source: 'agent_catalog' },
+      { h: head, t: 'Framework:HIPAA',            r: 'aligns_to',       source: 'agent_catalog' },
+      { h: head, t: 'Framework:ISO_14971',        r: 'aligns_to',       source: 'agent_catalog' },
+      ...a.tools.allowed.slice(0, 3).map((tool) => ({ h: head, t: `Tool:${tool}`, r: 'may_call',         source: 'agent_catalog' })),
+      ...a.tools.restricted.slice(0, 2).map((tool) => ({ h: head, t: `Tool:${tool}`, r: 'restricted_from', source: 'agent_catalog' })),
+    ];
+    return [...natural, ...synth];
+  }, [allTriples, agentId, agentLabel, personaSlug]);
   const loading = useSessionStore((s) => s.kgLoading);
   const error = useSessionStore((s) => s.kgError);
   const fetchKg = useSessionStore((s) => s.fetchKg);
@@ -124,8 +163,8 @@ export default function KnowledgeGraphView({ embedded = false, onSelectNode } = 
   const [dims, setDims] = useState({ w: 800, h: 600 });
 
   useEffect(() => {
-    fetchKg();
-  }, [fetchKg]);
+    fetchKg(personaSlug);
+  }, [fetchKg, personaSlug]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -220,7 +259,7 @@ export default function KnowledgeGraphView({ embedded = false, onSelectNode } = 
             </p>
           </div>
           <button
-            onClick={() => fetchKg()}
+            onClick={() => fetchKg(personaSlug)}
             className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-widest border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-blue-500 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded-none cursor-pointer"
           >
             <ArrowsClockwise size={14} weight="bold" className={loading ? 'animate-spin' : ''} />

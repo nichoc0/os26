@@ -202,7 +202,7 @@ function PipelineGraph({ agents, agentStates }) {
 export default function App() {
   const [customer, setCustomer] = useState('');
   const [company, setCompany] = useState('');
-  const [segment, setSegment] = useState('compliance'); // 'auto' | 'dev' | 'insurance' | 'compliance'
+  const FORCED_SEGMENT = 'dev'; // hardcoded — every run goes to /dev
   const [running, setRunning] = useState(false);
   const [runId, setRunId] = useState(null);
   const [error, setError] = useState(null);
@@ -245,7 +245,7 @@ export default function App() {
         body: JSON.stringify({
           customer: customer.trim(),
           company: company.trim() || undefined,
-          segment: segment !== 'auto' ? segment : undefined,
+          segment: FORCED_SEGMENT,
         }),
       });
     } catch (e) { setError(`Backend unreachable: ${e.message}`); setRunning(false); return; }
@@ -336,7 +336,7 @@ export default function App() {
           <p className="mt-1.5 text-[13px] text-slate-600 max-w-3xl leading-relaxed">
             Drop a prospect's name and their company. Two agents — Research and Frontend — coordinate to ship a personalized Bastion demo at <code className="font-mono text-blue-600 text-[12px]">staging.demo.pistonsolutions.ai</code>, then SMS the URL.
           </p>
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto_auto] items-stretch gap-3 max-w-3xl">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] items-stretch gap-3 max-w-3xl">
             <input
               type="text"
               value={customer}
@@ -355,18 +355,6 @@ export default function App() {
               disabled={running}
               className="bg-white border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
-            <select
-              value={segment}
-              onChange={(e) => setSegment(e.target.value)}
-              disabled={running}
-              title="Override the segment the research agent would auto-classify"
-              className="bg-white border border-slate-300 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            >
-              <option value="auto">Segment: auto</option>
-              <option value="dev">/dev</option>
-              <option value="insurance">/insurance</option>
-              <option value="compliance">/compliance</option>
-            </select>
             <button
               onClick={fire}
               disabled={running || !customer.trim()}

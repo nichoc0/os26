@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { MagnifyingGlass, ShieldCheck, CaretDown, DownloadSimple, Sparkle, Eye, ShieldCheckered, Key, X, Copy, CheckCircle } from '@phosphor-icons/react';
-import { UserButton } from '@clerk/clerk-react';
-import CustomerOrgBadge from './CustomerOrgBadge';
+import { OrganizationSwitcher, UserButton } from '@clerk/clerk-react';
 import { useModeStore, countSuppressedBlocks } from '../../store/modeStore';
 import { useIsDev } from '../../store/audienceStore';
 import EnforcementOnboardingModal from '../common/EnforcementOnboardingModal';
@@ -279,8 +278,16 @@ export function TopBar({ onSearch, setCurrentView, onOpenChangelog, events = [] 
                     </button>
                 )}
 
+                {/* Org + account switcher. Multi-tenant story — which
+                    organization you're attesting under, which Clerk user is
+                    logged in. */}
                 <div className="hidden sm:block">
-                    <CustomerOrgBadge />
+                    <OrganizationSwitcher
+                        hidePersonal
+                        afterCreateOrganizationUrl="/"
+                        afterSelectOrganizationUrl="/"
+                        appearance={{ elements: { rootBox: 'flex items-center', organizationSwitcherTrigger: 'px-2 py-1 border border-slate-300 dark:border-slate-700 rounded-none hover:border-blue-500' } }}
+                    />
                 </div>
                 <UserButton
                     afterSignOutUrl="/"

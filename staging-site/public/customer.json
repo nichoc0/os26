@@ -1,9 +1,9 @@
 {
   "default_segment": "compliance",
-  "brand_name": "Hippocratic AI",
-  "logo_url": "https://hippocraticai.com/wp-content/uploads/2025/09/logo-5.png",
-  "proprietary_hook": "On https://www.prnewswire.com/news-releases/hippocratic-ai-launches-polaris-5-0-... Munjal said: 'With Polaris 5.0 we are introducing the first evidence-based AI model for healthcare, tested by clinicians, built on more than 180 million real-world patient interactions and benchmarked against leading frontier voice capable models.' The demo hero should echo '180 million patient interactions' and reframe Bastion as the cryptographically signed runtime layer that proves the 0.00% severe-harm claim per-call, not per-audit-cycle.",
+  "brand_name": "Piston Solutions",
+  "logo_url": "https://logo.clearbit.com/pistonsolutions.ai",
+  "proprietary_hook": "On https://bastion.pistonsolutions.ai/ Nick's own product is positioned as 'Bastion — Agentic Risk Infrastructure'. The demo hero should mirror that exact phrase back at Nick — a self-referential demo showing Bastion telemetry on Bastion's own factory pipeline. Use the literal tagline 'Agentic Risk Infrastructure' verbatim in the hero copy.",
   "primary_color": "#60a5fa",
-  "factory_run_id": "rmp5sxnag-ebfaeff8",
+  "factory_run_id": "rmp5zrl54-1ae45e2d",
   "generated_at": "2026-05-14T00:00:00Z"
 }
