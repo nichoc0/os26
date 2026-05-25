@@ -90,7 +90,7 @@ export default function LiveVoiceView({ embedded = false } = {}) {
             <CompactEmpty message="No active calls" sub="Spawn a probe to see audio + transcript stream in here live." />
           ) : (
             <iframe
-              title="Bastion live voice listen widget"
+              title="Live voice listen"
               src={listenUrl}
               className="w-full h-full border-0"
               allow="autoplay; microphone"
@@ -103,35 +103,24 @@ export default function LiveVoiceView({ embedded = false } = {}) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Phone size={22} className="text-blue-600 dark:text-blue-400" weight="duotone" />
-          <div>
-            <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">Live Voice</h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Real-time audio + transcript view of voice probes running against your agents
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <StatusPill reachable={reachable} activeCount={activeCount} />
-          <a
-            href={listenUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="text-xs text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 inline-flex items-center gap-1"
-            title="Open the listen widget in a new tab"
-          >
-            Open in new tab <ArrowSquareOut size={12} />
-          </a>
-        </div>
+      <div className="px-6 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-end gap-3">
+        <StatusPill reachable={reachable} activeCount={activeCount} />
+        <a
+          href={listenUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 inline-flex items-center gap-1"
+          title="Open the listen widget in a new tab"
+        >
+          New tab <ArrowSquareOut size={12} />
+        </a>
       </div>
       <div className="flex-1 bg-slate-50 dark:bg-slate-950 overflow-hidden">
         {reachable === false ? (
           <UnreachableHint gateway={gateway} />
         ) : (
           <iframe
-            title="Bastion live voice listen widget"
+            title="Live voice listen"
             src={listenUrl}
             className="w-full h-full border-0"
             allow="autoplay; microphone"

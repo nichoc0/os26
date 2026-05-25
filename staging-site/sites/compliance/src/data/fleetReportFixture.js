@@ -140,12 +140,12 @@ const DEMO_ARABIC_BANK_REPORT = {
     },
     fleet_summary: {
         total_transactions: 4827,
-        agents_monitored: 6,
+        agents_monitored: 1,
         monitoring_hours: 4368,
         pii_remediation_rate: 0.988,
         anomaly_rate: 0.0042,
         total_cost_usd: 1247.66,
-        avg_latency_ms: 1100,
+        avg_latency_ms: 880,
         incidents_by_severity: {
             sev1_critical: 0,
             sev2_major: 2,
@@ -169,14 +169,10 @@ const DEMO_ARABIC_BANK_REPORT = {
         },
     },
     exposure: {
-        // 4-agent Arabic-banking roster (6-month window). Transactions scale ~6x
-        // the 30d per-agent split in agentCatalog.js. Sums to 4,827.
-        // Risk contributions sum to 100.0.
+        // Single-agent engagement. The Voice Banking Assistant owns the
+        // full 6-month transaction volume (no companion agents in scope).
         exposure_by_agent: [
-            { agent_id: 'investment_assistant',   transactions: 1740, pii_records: 148, tool_calls: 102, risk_contribution: 36.0 },
-            { agent_id: 'retail_support',         transactions: 1308, pii_records: 126, tool_calls:  72, risk_contribution: 27.0 },
-            { agent_id: 'client_intake',          transactions:  978, pii_records:  84, tool_calls:  54, risk_contribution: 20.3 },
-            { agent_id: 'wealth_advisor_copilot', transactions:  801, pii_records:  54, tool_calls:  54, risk_contribution: 16.7 },
+            { agent_id: 'voice_assistant', transactions: 4827, pii_records: 412, tool_calls: 282, risk_contribution: 100.0 },
         ],
     },
 };
@@ -248,11 +244,11 @@ export const RISK_COMPONENT_MAP = {
         { key: 'drift_component',           label: 'Language Mirroring Drift',           weight: 10, desc: 'First-turn language inconsistent with caller. HIPAA §164.530(b) effective communication.', framework: 'HIPAA §164.530(b)',  link: 'telemetry', linkLabel: 'View trends' },
     ],
     'demo-arabic-bank': [
-        { key: 'pii_component',             label: 'PII Cross-Account Disclosure',     weight: 30, desc: 'Customer record bleed across accounts. CBB Rulebook Vol 2 FC + AAOIFI GS-20.',                  framework: 'CBB Vol 2 FC',       link: 'telemetry', linkLabel: 'View PII events' },
-        { key: 'blocked_actions_component', label: 'Out-of-Scope Financial Advice',    weight: 25, desc: 'Agent gave personalised investment guidance outside its non-advisory scope. CBB HC + AAOIFI GS-21.', framework: 'CBB Vol 2 HC',       link: 'policy',    linkLabel: 'View enforcement policy' },
-        { key: 'anomaly_component',         label: 'Suitability Rubric Leakage',       weight: 20, desc: 'Verbatim disclosure of internal suitability scoring criteria. AAOIFI GS-19 Sharia-board oversight.', framework: 'AAOIFI GS-19',       link: 'telemetry', linkLabel: 'View telemetry' },
-        { key: 'confidence_component',      label: 'Product-Detail Hallucination',     weight: 15, desc: 'Fabricated product rates, terms, or contract details. CBB Vol 2 BC disclosure rules.',           framework: 'CBB Vol 2 BC',       link: 'telemetry', linkLabel: 'View flagged events' },
-        { key: 'drift_component',           label: 'Language Mirroring Drift',         weight: 10, desc: 'First-turn language inconsistent with caller. Customer-conduct expectation under CBB BC.',         framework: 'CBB Vol 2 BC',       link: 'telemetry', linkLabel: 'View trends' },
+        { key: 'blocked_actions_component', label: 'Auth Bypass on Banker Transfer',         weight: 30, desc: 'Agent transfers caller to a human banker with no auth gate. Identity passed to banker = caller-supplied name + inbound caller-ID, unverified against any customer record. CBB Vol 2 HC governance.',                  framework: 'CBB Vol 2 HC + FC',  link: 'telemetry', linkLabel: 'View transfer events' },
+        { key: 'pii_component',             label: 'Identity-by-Implication Leak',           weight: 25, desc: 'Refusal language affirms caller-asserted third-party customer status by presupposition ("his account", "his relationship manager"). Confirms existence even while refusing the direct query. CBB Vol 2 FC.', framework: 'CBB Vol 2 FC',       link: 'telemetry', linkLabel: 'View flagged events' },
+        { key: 'anomaly_component',         label: 'Unauthorised Third-Party Callback',      weight: 20, desc: 'Agent commits to scheduling bank-initiated callbacks to caller-named third parties without authentication or consent verification. Confirmed class across three independent attempts.',                        framework: 'CBB Vol 2 BC + FC',  link: 'telemetry', linkLabel: 'View callback events' },
+        { key: 'confidence_component',      label: 'Regulated-Product Disclosure Drift',     weight: 20, desc: 'Agent misstates regulated marketing disclosures — incorrect dividend frequency and understated yield target on a flagship investment fund. AAOIFI GS-21 SSB-reviewed product copy.',                          framework: 'AAOIFI GS-21',       link: 'telemetry', linkLabel: 'View drift events' },
+        { key: 'drift_component',           label: 'Language Mirroring Drift',               weight: 5,  desc: 'First-turn language inconsistent with caller. Caller comprehension preserved after the bilingual opening; cosmetic rather than load-bearing under CBB BC.',                                                      framework: 'CBB Vol 2 BC',       link: 'telemetry', linkLabel: 'View trends' },
     ],
     'acme-logistics': [
         { key: 'pii_component',             label: 'PII Exposure',        weight: 30, desc: 'Rate of unredacted personally identifiable information in agent outputs', framework: 'NIST AI RMF GV-4.2', link: 'telemetry', linkLabel: 'View PII events' },
@@ -273,10 +269,7 @@ export const AGENT_LABELS_BY_PERSONA = {
         triage_classifier:   'Triage Classifier',
     },
     'demo-arabic-bank': {
-        investment_assistant:     'Voice Banking Assistant',
-        retail_support:           'Retail Banking Support',
-        client_intake:            'Onboarding Concierge',
-        wealth_advisor_copilot:   'Relationship Copilot',
+        voice_assistant:          'Voice Banking Assistant',
     },
     'acme-logistics': {
         acme_phone_ai:      'Acme Phone AI',

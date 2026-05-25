@@ -70,7 +70,7 @@ export const PERSONA_CONFIG = {
             name: 'Demo Arabic Bank',
             logoUrl: null,
             primaryColor: '#0f3a5a',
-            hook: 'Bastion monitors the customer-facing AI fleet — Voice Banking Assistant, Retail Banking Support, Onboarding Concierge, Relationship Copilot — with continuous CBB + AAOIFI attestation.',
+            hook: 'Bastion monitors the customer-facing Voice Banking Assistant (in-app voice + chat, bilingual opening) with continuous CBB + AAOIFI attestation.',
         },
     },
     // Savio Labs — multi-tenant demo org. Savio Labs attests downstream

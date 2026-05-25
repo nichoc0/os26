@@ -16,6 +16,8 @@
 import { useEffect, useState } from 'react';
 import { Microphone, Lightning, ArrowSquareOut, CheckCircle, XCircle, Warning, CircleNotch } from '@phosphor-icons/react';
 import { useVoiceToken } from '../../data/useVoiceToken';
+import { usePersona } from '../../store/personaStore';
+import { getDemoVoiceRuns } from '../../data/demoVoiceRuns';
 
 const API_BASE =
   import.meta.env.VITE_API_URL ||
@@ -71,6 +73,7 @@ function VerdictPill({ verdict }) {
 
 export default function VoiceRunsPanel() {
   const { apiKey: bearer, status: bearerStatus, orgId } = useVoiceToken();
+  const persona = usePersona();
   const [runs, setRuns] = useState(null);
   const [error, setError] = useState(null);
   const [activeIds, setActiveIds] = useState(new Set());
@@ -80,8 +83,15 @@ export default function VoiceRunsPanel() {
   // the gateway; refreshing keeps the table honest.
   useEffect(() => {
     if (bearerStatus === 'idle' || bearerStatus === 'minting') return;
+    // Demo persona fallback: when the org has no real runs, surface a
+    // persona-scoped demo roster so the panel reads as a populated
+    // demo. Real tenants (no demo roster) still see the empty state.
+    const demoFallback = () => {
+      const demo = getDemoVoiceRuns(persona?.slug);
+      setRuns(demo);
+    };
     if (!bearer) {
-      setRuns([]);
+      demoFallback();
       return;
     }
     let cancelled = false;
@@ -93,7 +103,12 @@ export default function VoiceRunsPanel() {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const data = await r.json();
         if (cancelled) return;
-        setRuns(Array.isArray(data?.voice_runs) ? data.voice_runs : []);
+        const live = Array.isArray(data?.voice_runs) ? data.voice_runs : [];
+        if (live.length === 0) {
+          setRuns(getDemoVoiceRuns(persona?.slug));
+        } else {
+          setRuns(live);
+        }
         setError(null);
       } catch (e) {
         if (!cancelled) setError(e.message);
@@ -102,7 +117,7 @@ export default function VoiceRunsPanel() {
     pollRuns();
     const id = setInterval(pollRuns, 4000);
     return () => { cancelled = true; clearInterval(id); };
-  }, [bearer, bearerStatus]);
+  }, [bearer, bearerStatus, persona?.slug]);
 
   // Poll /v1/calls/active to mark rows as LIVE. We don't org-filter
   // server-side (gateway doesn't yet), but we cross-reference locally:
@@ -187,24 +202,23 @@ export default function VoiceRunsPanel() {
       )}
 
       <div className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        <div className="grid grid-cols-[110px_1fr_110px_140px_70px_120px_90px_90px_90px] gap-3 px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-slate-400 bg-slate-50 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800">
+        <div className="grid grid-cols-[110px_1fr_110px_140px_70px_90px_90px_90px] gap-3 px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-slate-400 bg-slate-50 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800">
           <span>State</span>
           <span>Call · Plugin · Goal</span>
           <span>User</span>
           <span>Termination</span>
           <span>Turns</span>
-          <span>Verdict</span>
           <span>Duration</span>
           <span>When</span>
           <span></span>
         </div>
         <div className="divide-y divide-slate-100 dark:divide-slate-800">
           {runs.map((r) => {
-            const isLive = activeIds.has(r.call_control_id);
+            const isLive = !r.__demo && activeIds.has(r.call_control_id);
             return (
               <div
                 key={r.id}
-                className="grid grid-cols-[110px_1fr_110px_140px_70px_120px_90px_90px_90px] gap-3 px-3 py-2.5 items-center text-[11px] hover:bg-slate-50 dark:hover:bg-slate-800/30"
+                className="grid grid-cols-[110px_1fr_110px_140px_70px_90px_90px_90px] gap-3 px-3 py-2.5 items-center text-[11px] hover:bg-slate-50 dark:hover:bg-slate-800/30"
               >
                 <span>
                   {isLive ? (
@@ -241,7 +255,6 @@ export default function VoiceRunsPanel() {
                 <div className="tabular-nums text-slate-600 dark:text-slate-300">
                   {r.turn_count ?? 0}/{r.max_turns ?? 0}
                 </div>
-                <VerdictPill verdict={r.grader_verdict} />
                 <div className="tabular-nums text-slate-500 dark:text-slate-400 text-[10px]">
                   {r.call_duration_ms ? `${Math.round(r.call_duration_ms / 1000)}s` : '—'}
                 </div>
@@ -257,20 +270,18 @@ export default function VoiceRunsPanel() {
                   >
                     Listen <ArrowSquareOut size={10} weight="bold" />
                   </a>
+                ) : r.__demo ? (
+                  <span className="text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500" title="Demo run — no recording attached">
+                    Demo
+                  </span>
                 ) : bearer ? (
-                  // Recording download. Bearer travels in query because
-                  // a regular <a download> can't set an Authorization
-                  // header; the gateway accepts ?bearer= equivalent to
-                  // Authorization. Stereo WAV: left = target, right =
-                  // Bastion. Open in any audio editor to grade offline.
-                  <a
-                    href={`${LISTEN_GATEWAY}/v1/recordings/${encodeURIComponent(r.call_control_id)}?bearer=${encodeURIComponent(bearer)}`}
-                    download={`bastion-${r.call_control_id.slice(0, 16)}.wav`}
-                    className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400"
-                    title="Download stereo WAV (L=target, R=Bastion)"
-                  >
-                    WAV <ArrowSquareOut size={10} weight="bold" />
-                  </a>
+                  // Recording download. The recorder is currently only
+                  // wired into the voice-WS-target route in the gateway
+                  // (see voice_ws_target.rs); AVA in-process and Telnyx
+                  // originate runs do not produce a WAV on disk yet, so
+                  // we surface a quiet dash instead of a broken link
+                  // for those call_id shapes.
+                  <span className="text-slate-400 text-[10px]">—</span>
                 ) : (
                   <span className="text-slate-400">
                     <ArrowSquareOut size={11} weight="bold" className="opacity-30" />

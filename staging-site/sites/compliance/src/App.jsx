@@ -28,13 +28,8 @@ const EMPTY_DATA = {
     insurance_sync:      { color: '#1d4ed8', label: 'Insurance Sync' },
     triage_classifier:   { color: '#60a5fa', label: 'Triage Classifier' },
     compliance_monitor:  { color: '#475569', label: 'Compliance Monitor' },
-    // Demo Arabic Bank
-    investment_assistant:     { color: '#0f3a5a', label: 'Voice Banking Assistant' },
-    retail_support:           { color: '#1e40af', label: 'Retail Banking Support' },
-    client_intake:            { color: '#2563eb', label: 'Onboarding Concierge' },
-    wealth_advisor_copilot:   { color: '#3b82f6', label: 'Relationship Copilot' },
-    crypto_payments_helper:   { color: '#60a5fa', label: 'Crypto Payments Helper' },
-    compliance_qa:            { color: '#475569', label: 'Compliance Reviewer' },
+    // Demo Arabic Bank — single voice agent.
+    voice_assistant:          { color: '#0f3a5a', label: 'Voice Banking Assistant' },
   },
   overview: { total_requests: 0, total_cost: 0, avg_latency: 0, pii_exposures: 0, fleet_risk: 0, agents_monitored: 0 },
   timeline: [],

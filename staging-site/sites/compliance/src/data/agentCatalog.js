@@ -91,62 +91,25 @@ const MAPLE_PHARMACY_AGENTS = [
   },
 ];
 
-// Arabic-banking AI suite demo roster — 4 customer-facing AI agents.
-// Generic Islamic-banking framing; no lead names. Per-agent metrics
-// redistribute the canonical 30d totals (805 actions / 70 PII / 47
-// blocks) across these 4 so screen-by-screen math stays consistent.
+// Arabic-banking AI suite demo roster — one customer-facing voice
+// agent. Scope intentionally narrow: only the agent observed live on
+// the wire. Tool surface reflects what recon actually confirmed —
+// product Q&A, callback dispatch, real-time transfer to a relationship
+// manager. Account-balance reads were attempted multiple times and
+// refused cleanly, so they're modelled as restricted, not allowed.
 const ARABIC_BANKING_AGENTS = [
   {
     id: 'voice_assistant',
     label: 'Voice Banking Assistant',
     channel: 'Voice + chat',
-    purpose: 'In-app voice and chat assistant. Account information, portfolio context, product Q&A, callback scheduling. Bilingual Arabic / English. Non-advisory.',
+    purpose: 'Customer-facing assistant inside the bank\'s investment app. Answers product questions, dispatches callbacks, and transfers callers to a relationship manager. Non-advisory by design — never recommends a specific product or initiates a transaction.',
     tier: 'High',
-    metrics: { actions: 290, piiDetected: 26, toolBlocks: 17, avgLatencyMs: 880, costUsd: 0.86, riskScore: 24.0, riskContribution: 36.0 },
+    metrics: { actions: 805, piiDetected: 70, toolBlocks: 47, avgLatencyMs: 880, costUsd: 1.96, riskScore: 24.0, riskContribution: 100.0 },
     tools: {
-      allowed:    ['account_lookup', 'portfolio_balance', 'product_info', 'schedule_callback'],
-      restricted: ['execute_trade', 'personalized_investment_advice', 'wire_transfer_initiate'],
+      allowed:    ['product_info', 'schedule_callback', 'transfer_to_banker', 'app_walkthrough'],
+      restricted: ['account_lookup', 'portfolio_balance', 'transaction_history', 'execute_trade', 'wire_transfer_initiate', 'personalized_investment_advice'],
     },
-    findingIds: ['suitability-rubric-leakage', 'cross-account-disclosure', 'out-of-scope-advice', 'language-consistency'],
-  },
-  {
-    id: 'retail_support',
-    label: 'Retail Banking Support',
-    channel: 'Chat + voice',
-    purpose: 'Retail and commercial banking servicing. Account balances, transaction history, card status, callback routing.',
-    tier: 'Medium',
-    metrics: { actions: 218, piiDetected: 21, toolBlocks: 12, avgLatencyMs: 640, costUsd: 0.25, riskScore: 21.0, riskContribution: 27.0 },
-    tools: {
-      allowed:    ['account_lookup', 'transaction_history', 'card_status', 'schedule_callback'],
-      restricted: ['execute_trade', 'wire_transfer_initiate', 'override_limit'],
-    },
-    findingIds: [],
-  },
-  {
-    id: 'client_intake',
-    label: 'Onboarding Concierge',
-    channel: 'Chat',
-    purpose: 'KYC and account-opening triage. Document checklist, identity-verification status, escalation to a banker for the write-step.',
-    tier: 'High',
-    metrics: { actions: 163, piiDetected: 14, toolBlocks: 9, avgLatencyMs: 1380, costUsd: 0.54, riskScore: 22.5, riskContribution: 20.3 },
-    tools: {
-      allowed:    ['kyc_status', 'schedule_appointment', 'send_notification', 'escalate_compliance'],
-      restricted: ['account_open', 'wire_transfer_initiate', 'credit_decision'],
-    },
-    findingIds: [],
-  },
-  {
-    id: 'wealth_advisor_copilot',
-    label: 'Relationship Copilot',
-    channel: 'Internal',
-    purpose: 'RM-facing assistant. Pulls portfolio context, product info, and drafts call-prep summaries. Internal-only; never client-facing.',
-    tier: 'Medium',
-    metrics: { actions: 134, piiDetected: 9, toolBlocks: 9, avgLatencyMs: 1180, costUsd: 0.31, riskScore: 19.5, riskContribution: 16.7 },
-    tools: {
-      allowed:    ['portfolio_balance', 'product_info', 'account_lookup', 'draft_proposal'],
-      restricted: ['execute_trade', 'personalized_investment_advice', 'override_suitability'],
-    },
-    findingIds: [],
+    findingIds: ['caller-id-auth-bypass', 'third-party-callback-class', 'product-yield-misrepresentation', 'identity-by-implication'],
   },
 ];
 

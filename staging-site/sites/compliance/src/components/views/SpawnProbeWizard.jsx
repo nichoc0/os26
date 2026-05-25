@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, ArrowLeft, Check, Lightning, Robot, CircleNotch, FileText, Phone, Warning } from '@phosphor-icons/react';
-import { VERTICALS, VOICE_TRANSLATABLE_STRATEGIES, getVertical } from '../../data/verticalCatalog';
+import { VERTICALS, VOICE_TRANSLATABLE_STRATEGIES, getVertical, buildProbeGoal, buildProbeRule } from '../../data/verticalCatalog';
 import { useVoiceToken } from '../../data/useVoiceToken';
 
 const GATEWAY = (import.meta.env.VITE_VOICE_GATEWAY_URL || 'https://voice-demo.pistonsolutions.ai').replace(/\/+$/, '');
@@ -12,7 +12,11 @@ const GATEWAY = (import.meta.env.VITE_VOICE_GATEWAY_URL || 'https://voice-demo.p
 // gateway port via Tailscale's DERP edge — much lower WS jitter, so
 // in-iframe audio is finally clean. The HTTP spawn endpoint stays on
 // voice-demo (cloudflared is fine for one-shot POSTs).
-const LISTEN_GATEWAY = (import.meta.env.VITE_LISTEN_GATEWAY_URL || 'https://ncas-mac-mini.tailb4b5fb.ts.net').replace(/\/+$/, '');
+// Listen gateway must be publicly accessible from the dashboard origin —
+// the tailnet URL (*.ts.net) won't render in an iframe from public Vercel
+// unless Tailscale Funnel is on the device. Default to the same public
+// gateway as the originate POSTs so the iframe loads cleanly cross-origin.
+const LISTEN_GATEWAY = (import.meta.env.VITE_LISTEN_GATEWAY_URL || 'https://voice-demo.pistonsolutions.ai').replace(/\/+$/, '');
 
 // Vertical-family Spawn Probe wizard. Replaces the prior flat scenario
 // list with a four-step flow:
@@ -27,30 +31,58 @@ const LISTEN_GATEWAY = (import.meta.env.VITE_LISTEN_GATEWAY_URL || 'https://ncas
 // chosen. Multi-agent fan-out is rendered as N attacker agents probing
 // the single target Sera DID.
 
-const STEPS = [
+// Steps differ by vertical. Non-custom verticals get the simple
+// 2-pick flow (agent → language → auto-spawn). Custom keeps the
+// full plugin-family / configure-run pipeline since the operator
+// has to author goal + rule + DID from scratch.
+const STEPS_SIMPLE = [
+    { id: 'vertical', label: 'Agent' },
+    { id: 'language', label: 'Language' },
+    { id: 'spawn',    label: 'Run' },
+];
+const STEPS_CUSTOM = [
     { id: 'vertical',  label: 'Agent' },
     { id: 'plugins',   label: 'Plugin family' },
     { id: 'configure', label: 'Configure run' },
     { id: 'spawn',     label: 'Spawn & monitor' },
 ];
 
+// Languages the gateway can route through Deepgram STT + ElevenLabs
+// TTS without extra voice-id config. Arabic added 2026-05-24 for the
+// Bahraini Islamic-banking demo; gateway-side Deepgram model needs
+// `language: multi` or `language: ar+en` to handle the inbound side.
+// Languages exposed in the wizard. Deepgram Nova-3 Arabic landed
+// 2026-01-29 (Gulf, Levantine, Egyptian, MSA, Maghrebi, Iraqi,
+// peripheral); gateway uses `Language::Other("ar-SA")` for Gulf.
+//
+// Gateway-side caveat (until per-call STT switching ships): the
+// gateway's Deepgram session is a per-process flag set via
+// VOICE_DEEPGRAM_LANGUAGE. Set to `ar-SA` for Arabic probes, unset
+// (defaults to multi) for English / French / Spanish.
+const LANGUAGES = [
+    { id: 'English',           label: 'English',                       note: 'Sera (in-process) target speaks English. Gateway must be in multi-language STT mode (default).' },
+    { id: 'Arabic (Khaleeji)', label: 'Arabic — Khaleeji (العربية)',   note: 'Gulf-dialect Arabic. Right pack for Bahrain / GCC bank engagements. Gateway must be in Arabic STT mode (VOICE_DEEPGRAM_LANGUAGE=ar-SA) — Sera target won\'t respond in Arabic, so this is most useful via the SDK Telnyx-outbound path against a real Arabic-speaking agent.' },
+    { id: 'French',            label: 'French',                        note: 'Attacker speaks French. Deepgram-multi transcribes it.' },
+    { id: 'Spanish',           label: 'Spanish',                       note: 'Attacker speaks Spanish. Deepgram-multi transcribes it.' },
+];
+
 export default function SpawnProbeWizard({ setCurrentView }) {
     const [step, setStep] = useState(0);
     const [verticalId, setVerticalId] = useState(null);
+    const [language, setLanguage] = useState('English');
     const [selectedPlugins, setSelectedPlugins] = useState([]);
     const [selectedStrategies, setSelectedStrategies] = useState(['basic']);
     const [config, setConfig] = useState({
         targetDID: '',
-        attackerCount: 3,
-        maxTurns: 6,
+        // One attacker per spawn is the default — keeps the demo tight
+        // and the airtime cost predictable. Operators on the custom
+        // path can fan out further.
+        attackerCount: 1,
+        maxTurns: 8,
         // LiveKit-style text-level turn detector. Opt-in per probe — when
         // checked, both agents call the `bastion-livekit-turn` sidecar
         // before firing the LLM so peer turn must read as complete first.
         useTurnDetector: false,
-        // Voice IDs are static on the gateway side — not surfaced as
-        // config. See voice-orchestrator/src/providers/elevenlabs.rs:
-        //   TARGET_VOICE_ID   = "052jzHJceQiZr7ltnY0C" (Sera)
-        //   ATTACKER_VOICE_ID = "XA2bIQ92TabjGbpO2xRr" (Bastion)
     });
     const [selectedAttackerId, setSelectedAttackerId] = useState(null);
     const [spawnState, setSpawnState] = useState({ status: 'idle' });
@@ -63,6 +95,8 @@ export default function SpawnProbeWizard({ setCurrentView }) {
     const { apiKey: voiceToken, orgId: voiceOrgId, status: voiceTokenStatus, mint: refreshVoiceToken } = useVoiceToken();
 
     const vertical = verticalId ? getVertical(verticalId) : null;
+    const isCustom = vertical?.id === 'custom';
+    const STEPS = isCustom ? STEPS_CUSTOM : STEPS_SIMPLE;
 
     const next = () => setStep((s) => Math.min(s + 1, STEPS.length - 1));
     const back = () => setStep((s) => Math.max(s - 1, 0));
@@ -70,10 +104,25 @@ export default function SpawnProbeWizard({ setCurrentView }) {
     const pickVertical = (id) => {
         const v = getVertical(id);
         setVerticalId(id);
-        setSelectedPlugins(v.plugins.map((p) => p.id));
-        setSelectedStrategies(v.defaultStrategies);
+        // Simple flow: one representative plugin only — one agent, one
+        // probe, one call. Custom flow: all plugins, operator picks.
+        // The representative plugin is the first one in the catalog
+        // (curated order, most-buyer-recognizable probe first).
+        const isCustomVertical = id === 'custom';
+        setSelectedPlugins(isCustomVertical ? v.plugins.map((p) => p.id) : (v.plugins[0] ? [v.plugins[0].id] : []));
+        // Simple flow also locks to a single strategy ("basic") — one
+        // attacker × one plugin × one strategy = exactly one dial.
+        setSelectedStrategies(isCustomVertical ? v.defaultStrategies : ['basic']);
         setConfig((c) => ({ ...c, targetDID: v.targetDID || '' }));
         setStep(1);
+    };
+
+    const pickLanguage = (lang) => {
+        setLanguage(lang);
+        // Advance immediately — the simple flow runs the probe on
+        // language selection. The Spawn step's auto-fire effect picks
+        // up from there.
+        setStep(2);
     };
 
     const togglePlugin = (pluginId) => {
@@ -89,10 +138,26 @@ export default function SpawnProbeWizard({ setCurrentView }) {
 
     const canAdvance = () => {
         if (step === 0) return verticalId !== null;
-        if (step === 1) return selectedPlugins.length > 0 || verticalId === 'custom';
-        if (step === 2) return true;
+        if (isCustom) {
+            // Custom flow: step 1 = plugin picks, step 2 = config, step 3 = spawn
+            if (step === 1) return selectedPlugins.length > 0;
+            return true;
+        }
+        // Simple flow: step 1 = language, step 2 = spawn (auto)
+        if (step === 1) return !!language;
         return true;
     };
+
+    // Simple-flow auto-fire: when we land on the final step in non-custom
+    // mode, kick the probe immediately. The operator already picked the
+    // agent and the language — no extra click should be needed.
+    useEffect(() => {
+        if (isCustom) return;
+        if (step !== STEPS.length - 1) return;
+        if (spawnState.status !== 'idle') return;
+        spawn();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [step, isCustom, spawnState.status]);
 
     // Build the fan-out matrix from the wizard's selections, then cap
     // total probes at MAX_TOTAL_PROBES. The cap is on TOTAL calls fired
@@ -148,17 +213,32 @@ export default function SpawnProbeWizard({ setCurrentView }) {
             });
 
             try {
+                // Resolve plugin + strategy objects from the catalog so the
+                // goal / rule builders get the full attackerSeed + tactics.
+                // Fall back to label-only objects if a custom plugin is
+                // selected (vertical 'custom' path).
+                const pluginObj = (vertical.plugins || []).find((p) => p.id === entry.plugin_id)
+                    || { id: entry.plugin_id, label: entry.plugin_label || entry.plugin_id };
+                const strategyObj = VOICE_TRANSLATABLE_STRATEGIES.find((s) => s.id === entry.strategy_id)
+                    || { id: entry.strategy_id, label: entry.strategy_id };
+
+                const goal = buildProbeGoal(vertical, pluginObj, strategyObj, { maxTurns: config.maxTurns, language });
+                const qaRule = buildProbeRule(vertical, pluginObj);
+
                 const body = {
                     target_session_type: 'sera',
                     use_turn_detector: !!config.useTurnDetector,
                     adversarial_config: {
                         strategy_id: entry.strategy_id,
                         plugin_id: entry.plugin_id,
-                        goal: `Vertical: ${vertical.label}. Run plugin ${entry.plugin_id} via strategy ${entry.strategy_id} against ${vertical.target}.`,
+                        goal,
+                        qa_rule: qaRule,
+                        language,
                         max_turns: config.maxTurns,
                         metadata: {
                             wizard_vertical: vertical.id,
                             attacker_index: entry.attacker_index,
+                            language,
                         },
                     },
                 };
@@ -239,12 +319,17 @@ export default function SpawnProbeWizard({ setCurrentView }) {
                         transition={{ duration: 0.18 }}
                     >
                         {step === 0 && <VerticalStep onPick={pickVertical} />}
-                        {step === 1 && vertical && <PluginsStep vertical={vertical} selectedPlugins={selectedPlugins} onToggle={togglePlugin} selectedStrategies={selectedStrategies} onToggleStrategy={toggleStrategy} />}
-                        {step === 2 && vertical && <ConfigureStep vertical={vertical} config={config} setConfig={setConfig} selectedPlugins={selectedPlugins} selectedStrategies={selectedStrategies} />}
-                        {step === 3 && vertical && (
+                        {/* Custom flow: full plugin + config wizard.
+                            Simple flow: just a language picker between
+                            agent and spawn. */}
+                        {isCustom && step === 1 && vertical && <PluginsStep vertical={vertical} selectedPlugins={selectedPlugins} onToggle={togglePlugin} selectedStrategies={selectedStrategies} onToggleStrategy={toggleStrategy} />}
+                        {isCustom && step === 2 && vertical && <ConfigureStep vertical={vertical} config={config} setConfig={setConfig} selectedPlugins={selectedPlugins} selectedStrategies={selectedStrategies} />}
+                        {!isCustom && step === 1 && vertical && <LanguageStep vertical={vertical} language={language} onPick={pickLanguage} />}
+                        {step === STEPS.length - 1 && vertical && (
                             <SpawnStep
                                 vertical={vertical}
                                 config={config}
+                                language={language}
                                 selectedPlugins={selectedPlugins}
                                 selectedStrategies={selectedStrategies}
                                 state={spawnState}
@@ -340,6 +425,40 @@ function VerticalStep({ onPick }) {
                     );
                 })}
             </div>
+        </div>
+    );
+}
+
+function LanguageStep({ vertical, language, onPick }) {
+    return (
+        <div>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 mb-1">Language</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">
+                The attacker agent will speak this language for the entire call. Pick one and the probe runs.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {LANGUAGES.map((l) => {
+                    const selected = language === l.id;
+                    return (
+                        <button
+                            key={l.id}
+                            type="button"
+                            onClick={() => onPick(l.id)}
+                            className={`text-left p-4 border transition-colors cursor-pointer rounded-none ${
+                                selected
+                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 ring-1 ring-blue-500'
+                                    : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-500 dark:hover:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900/60'
+                            }`}
+                        >
+                            <div className="text-sm font-bold text-slate-900 dark:text-slate-50 mb-1">{l.label}</div>
+                            <div className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">{l.note}</div>
+                        </button>
+                    );
+                })}
+            </div>
+            <p className="mt-5 text-[10px] text-slate-400 dark:text-slate-500 leading-relaxed">
+                Target: <code className="font-mono text-[10px]">{vertical.target}</code>. Default plugin set: all {vertical.plugins.length} probes in the {vertical.label} family. Default strategy: <code className="font-mono text-[10px]">basic</code>. One attacker agent, single sequential pass.
+            </p>
         </div>
     );
 }
@@ -597,6 +716,12 @@ function SpawnStep({ vertical, config, selectedPlugins, selectedStrategies, stat
 
 function AttackerListWithTranscript({ attackers, selectedId, onSelect }) {
     const selected = attackers.find((a) => a.id === selectedId);
+    // Listen WS requires a bearer — without it the gateway refuses
+    // the upgrade with 401 and the browser surfaces it as a 1006
+    // abnormal close. Mint locally so the bearer travels in the
+    // iframe URL ?bearer= query param.
+    const { apiKey: listenBearer } = useVoiceToken();
+    const bearerSuffix = listenBearer ? `&bearer=${encodeURIComponent(listenBearer)}` : '';
     return (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
             <div className="lg:col-span-2 space-y-2">
@@ -622,7 +747,7 @@ function AttackerListWithTranscript({ attackers, selectedId, onSelect }) {
                     </div>
                     {selected?.call_control_id && (
                         <a
-                            href={`${LISTEN_GATEWAY}/listen?call_id=${encodeURIComponent(selected.call_control_id)}&embed=1`}
+                            href={`${LISTEN_GATEWAY}/listen?call_id=${encodeURIComponent(selected.call_control_id)}&embed=1${bearerSuffix}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline"
@@ -635,6 +760,7 @@ function AttackerListWithTranscript({ attackers, selectedId, onSelect }) {
                     {selected?.call_control_id ? (
                         <LiveTranscriptFrame
                             callId={selected.call_control_id}
+                            bearer={listenBearer}
                             label={`Live transcript Attacker-${selected.attacker_index + 1}`}
                         />
                     ) : (
@@ -727,8 +853,13 @@ function Stat({ label, value, accent }) {
 // frame, so the document/CSS/JS + AudioContext are reused. Saves ~500-
 // 1000 ms per switch vs the prior key= remount that forced a full
 // document boot every time.
-function LiveTranscriptFrame({ callId, label }) {
-    const initialSrc = useRef(`${LISTEN_GATEWAY}/listen?call_id=${encodeURIComponent(callId)}&embed=1`);
+function LiveTranscriptFrame({ callId, bearer, label }) {
+    // Bearer is required by the listen WS endpoint — without it the
+    // gateway returns 401 on the upgrade and the browser surfaces it
+    // as a 1006 abnormal close. Bake it into the initial src so the
+    // very first WS open carries auth.
+    const bearerSuffix = bearer ? `&bearer=${encodeURIComponent(bearer)}` : '';
+    const initialSrc = useRef(`${LISTEN_GATEWAY}/listen?call_id=${encodeURIComponent(callId)}&embed=1${bearerSuffix}`);
     const iframeRef = useRef(null);
     const readyRef = useRef(false);
     const pendingRef = useRef(null);

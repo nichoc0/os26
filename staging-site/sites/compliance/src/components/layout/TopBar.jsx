@@ -187,40 +187,10 @@ export function TopBar({ onSearch, setCurrentView, onOpenChangelog, events = [] 
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
                 {/* Config accessible via sidebar */}
                 <div className="min-w-0 flex items-center gap-4">
-                    {/* Branding + Dropdown */}
+                    {/* Branding (plain wordmark, no dropdown). Per-report
+                        export lives on the Posture Report page itself. */}
                     <div className="hidden lg:flex flex-col border-r border-slate-200 dark:border-slate-800 pr-6 mr-6">
-                        <div className="relative" ref={menuRef}>
-                            <button
-                                onClick={() => setMenuOpen(!menuOpen)}
-                                className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
-                            >
-                                <span className="text-slate-800 dark:text-slate-100 font-bold tracking-tight text-xl sm:text-2xl">Bastion</span>
-                                <CaretDown size={16} weight="bold" className="text-slate-400" />
-                            </button>
-                            {menuOpen && (
-                                <div className="absolute top-full left-0 mt-2 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-lg z-50">
-                                    <div className="px-4 py-2 text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
-                                        Export
-                                    </div>
-                                    <button
-                                        onClick={handleDownloadPostureReport}
-                                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                                    >
-                                        <DownloadSimple size={16} weight="bold" className="text-slate-500 dark:text-slate-400" />
-                                        Download Posture Report (.docx)
-                                    </button>
-                                    {!isDev && (
-                                        <button
-                                            onClick={handleDownloadReport}
-                                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-800"
-                                        >
-                                            <DownloadSimple size={16} weight="bold" className="text-blue-500" />
-                                            Download Underwriting Report (.xlsx)
-                                        </button>
-                                    )}
-                                </div>
-                            )}
-                        </div>
+                        <span className="text-slate-800 dark:text-slate-100 font-bold tracking-tight text-xl sm:text-2xl">Bastion</span>
                     </div>
                     {/* (System status pill removed — Primary/Backup/Uptime were
                         demo-only fake numbers. A real status surface would need
@@ -268,15 +238,6 @@ export function TopBar({ onSearch, setCurrentView, onOpenChangelog, events = [] 
                         <span>Enforcement</span>
                     </button>
                 </div>
-
-                {onOpenChangelog && (
-                    <button onClick={onOpenChangelog}
-                        className="p-1.5 sm:p-2 rounded-none text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 border border-slate-300 dark:border-slate-700 bg-transparent transition-colors"
-                        aria-label="What's new"
-                        title="What's new">
-                        <Sparkle size={14} weight="bold" />
-                    </button>
-                )}
 
                 {/* Org + account switcher. Multi-tenant story — which
                     organization you're attesting under, which Clerk user is

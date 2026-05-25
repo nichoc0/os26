@@ -22,17 +22,12 @@ export default function CallsPanel() {
   return (
     <div className="flex flex-col gap-6 px-6 py-5">
       <section>
-        <div className="flex items-baseline gap-3 mb-3">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
-            </span>
-            <h2 className="text-xs font-bold uppercase tracking-widest text-slate-700 dark:text-slate-200">Live calls</h2>
-          </div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400">
-            What's running right now — both voice channels and WebSocket sessions in flight.
-          </p>
+        <div className="flex items-center gap-2 mb-3">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+          </span>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-700 dark:text-slate-200">Live calls</h2>
         </div>
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <div className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-none">
@@ -40,7 +35,7 @@ export default function CallsPanel() {
               <Phone size={12} weight="bold" className="text-slate-500 dark:text-slate-400" />
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300">Live voice</span>
             </div>
-            <div className="min-h-[260px]">
+            <div className="h-[520px]">
               <LiveVoiceView embedded />
             </div>
           </div>
@@ -49,7 +44,7 @@ export default function CallsPanel() {
               <Network size={12} weight="bold" className="text-slate-500 dark:text-slate-400" />
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300">Live WebSockets</span>
             </div>
-            <div className="min-h-[260px]">
+            <div className="h-[520px]">
               <LiveSocketsView embedded />
             </div>
           </div>
@@ -57,14 +52,9 @@ export default function CallsPanel() {
       </section>
 
       <section>
-        <div className="flex items-baseline gap-3 mb-3">
-          <div className="flex items-center gap-2">
-            <ClockCounterClockwise size={14} weight="bold" className="text-slate-500 dark:text-slate-400" />
-            <h2 className="text-xs font-bold uppercase tracking-widest text-slate-700 dark:text-slate-200">Past runs</h2>
-          </div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400">
-            Voice runs + completed WebSocket sessions. Click any row for the per-run inspector.
-          </p>
+        <div className="flex items-center gap-2 mb-3">
+          <ClockCounterClockwise size={14} weight="bold" className="text-slate-500 dark:text-slate-400" />
+          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-700 dark:text-slate-200">Past runs</h2>
         </div>
         <div className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-none">
           <VoiceRunsPanel embedded />
