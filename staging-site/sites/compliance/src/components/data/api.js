@@ -34,6 +34,13 @@ async function fetchJSON(path, { customerSlug } = {}) {
         if (ct.includes('application/json')) return await perCustomer.json();
       }
     } catch {}
+    // Per-customer file was missing. DO NOT fall through to the
+    // global pharmacy fixtures — that's how pharmacy tool calls
+    // (check_rx_history, patient_id, metformin) leaked into the
+    // Bahrain Bank inspector. Throw so the caller can fall back to
+    // whatever list-entry data it already has, or render an empty
+    // detail panel.
+    throw new Error(`No per-customer fixture for ${customerSlug}${path}`);
   }
   try {
     const resp = await fetch(`${API_BASE}${path}`);

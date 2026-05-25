@@ -293,11 +293,17 @@ export default function App() {
       setSelectedEvent(existing);
       return;
     }
-    // Fetch full details from API
-    fetchEventDetail(selectedEventId)
+    // Fetch full details from API, scoped to the active customer so
+    // per-customer per-event JSONs win the override race. When the
+    // per-customer file doesn't exist, the existing list entry is
+    // the source of truth — DO NOT fall through to the global
+    // pharmacy event-detail fixtures (that's how Bahrain Bank
+    // surfaces leaked `check_rx_history(patient_id, drug=metformin)`
+    // pharmacy tool calls in the inspector).
+    fetchEventDetail(selectedEventId, { customerSlug })
       .then(event => setSelectedEvent(event))
       .catch(() => setSelectedEvent(existing || null));
-  }, [selectedEventId, data.events]);
+  }, [selectedEventId, data.events, customerSlug]);
 
   const handleSearch = (targetView, queryText) => {
     if (targetView && targetView !== currentView) setCurrentView(targetView);

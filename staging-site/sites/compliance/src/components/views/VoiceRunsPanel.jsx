@@ -83,13 +83,23 @@ export default function VoiceRunsPanel() {
   // the gateway; refreshing keeps the table honest.
   useEffect(() => {
     if (bearerStatus === 'idle' || bearerStatus === 'minting') return;
-    // Demo persona fallback: when the org has no real runs, surface a
-    // persona-scoped demo roster so the panel reads as a populated
-    // demo. Real tenants (no demo roster) still see the empty state.
+    // Demo persona policy:
+    //   - 'demo-arabic-bank' is a curated buyer-facing demo. We ALWAYS
+    //     show the curated demo roster regardless of what's actually in
+    //     the live voice_runs table — internal test probes from the
+    //     Piston team shouldn't clutter the prospect's view.
+    //   - Any other persona: fall back to demo runs only when the live
+    //     list is empty. Real tenants see real data.
+    const DEMO_OVERRIDE_PERSONAS = new Set(['demo-arabic-bank']);
+    const useDemoOverride = DEMO_OVERRIDE_PERSONAS.has(persona?.slug);
     const demoFallback = () => {
       const demo = getDemoVoiceRuns(persona?.slug);
       setRuns(demo);
     };
+    if (useDemoOverride) {
+      demoFallback();
+      return;
+    }
     if (!bearer) {
       demoFallback();
       return;
@@ -239,8 +249,11 @@ export default function VoiceRunsPanel() {
                   <div className="truncate font-mono text-slate-800 dark:text-slate-200" title={r.call_control_id}>
                     {shortCallId(r.call_control_id)}
                   </div>
-                  <div className="truncate text-slate-500 dark:text-slate-400 text-[10px]" title={`${r.plugin_id || ''} · ${r.goal || ''}`}>
-                    {r.plugin_id || '—'} · {r.goal || ''}
+                  {/* Plugin id only in the row — full goal text is huge
+                      and bleeds the column. Goal lives in the title=
+                      tooltip so it's still recoverable on hover. */}
+                  <div className="truncate text-slate-500 dark:text-slate-400 text-[10px]" title={r.goal || ''}>
+                    {r.plugin_id || '—'}
                   </div>
                 </div>
                 <div
@@ -275,13 +288,21 @@ export default function VoiceRunsPanel() {
                     Demo
                   </span>
                 ) : bearer ? (
-                  // Recording download. The recorder is currently only
-                  // wired into the voice-WS-target route in the gateway
-                  // (see voice_ws_target.rs); AVA in-process and Telnyx
-                  // originate runs do not produce a WAV on disk yet, so
-                  // we surface a quiet dash instead of a broken link
-                  // for those call_id shapes.
-                  <span className="text-slate-400 text-[10px]">—</span>
+                  // Recording download. The recorder is now wired into
+                  // both the AVA in-process route (ava-* call_ids) and
+                  // the WS-target route (ws-* call_ids). Telnyx originate
+                  // (v3:* call_ids) is still pending — those rows will
+                  // still 404, but the link is consistently shown for
+                  // all call types so the UI doesn't silently drop a
+                  // valid download on AVA runs.
+                  <a
+                    href={`${LISTEN_GATEWAY}/v1/recordings/${encodeURIComponent(r.call_control_id)}?bearer=${encodeURIComponent(bearer)}`}
+                    download={`bastion-${r.call_control_id.slice(0, 16)}.wav`}
+                    className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400"
+                    title="Download stereo WAV (L = inbound, R = outbound)"
+                  >
+                    WAV <ArrowSquareOut size={10} weight="bold" />
+                  </a>
                 ) : (
                   <span className="text-slate-400">
                     <ArrowSquareOut size={11} weight="bold" className="opacity-30" />

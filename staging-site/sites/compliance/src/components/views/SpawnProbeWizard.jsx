@@ -2,6 +2,26 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, ArrowLeft, Check, Lightning, Robot, CircleNotch, FileText, Phone, Warning } from '@phosphor-icons/react';
 import { VERTICALS, VOICE_TRANSLATABLE_STRATEGIES, getVertical, buildProbeGoal, buildProbeRule } from '../../data/verticalCatalog';
+import { usePersona } from '../../store/personaStore';
+
+// Maps a Clerk-org persona slug to the vertical we recommend for it.
+// Used by VerticalStep to reorder + flag a "Recommended for <Org>"
+// vertical so e.g. the Bahrain Bank viewer doesn't have to scroll past
+// Pharmacy / Medical to land on Banking presets.
+const PERSONA_VERTICAL_HINT = {
+    'demo-arabic-bank': 'banking',
+    'maple-pharmacy':   'pharmacy',
+};
+
+// Per-persona vertical allowlist. Verticals NOT in this set are hidden
+// from the wizard for that persona — a banking customer should never
+// see Pharmacy / Medical presets, a healthcare customer should never
+// see Banking. When a persona isn't keyed here, ALL verticals are
+// shown (catch-all for unconfigured orgs / dev / Piston Solutions).
+const PERSONA_VERTICAL_ALLOWLIST = {
+    'demo-arabic-bank': ['banking', 'cyber', 'custom'],
+    'maple-pharmacy':   ['pharmacy', 'medical', 'cyber', 'custom'],
+};
 import { useVoiceToken } from '../../data/useVoiceToken';
 
 const GATEWAY = (import.meta.env.VITE_VOICE_GATEWAY_URL || 'https://voice-demo.pistonsolutions.ai').replace(/\/+$/, '');
@@ -389,26 +409,59 @@ function StepIndicator({ step, steps }) {
 }
 
 function VerticalStep({ onPick }) {
+    const persona = usePersona();
+    const recommendedId = PERSONA_VERTICAL_HINT[persona?.slug] || null;
+    // Per-persona vertical filter. Banking customers don't see Pharmacy
+    // / Medical presets and vice versa. Unconfigured personas get all.
+    const allowlist = PERSONA_VERTICAL_ALLOWLIST[persona?.slug];
+    const filtered = allowlist
+        ? VERTICALS.filter((v) => allowlist.includes(v.id))
+        : VERTICALS;
+    // Reorder verticals so the persona's recommended one is first.
+    // Stable order for the rest. Custom always stays last.
+    const ordered = [...filtered].sort((a, b) => {
+        if (a.id === recommendedId) return -1;
+        if (b.id === recommendedId) return 1;
+        if (a.id === 'custom') return 1;
+        if (b.id === 'custom') return -1;
+        return 0;
+    });
     return (
         <div>
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 mb-1">Pick an agent</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">Each agent type resolves to a curated probe family tailored for voice testing.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">
+                Each agent type resolves to a curated probe family tailored for voice testing.
+                {recommendedId && persona?.label && (
+                    <> The first tile is the family we recommend for <strong>{persona.label}</strong>.</>
+                )}
+            </p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {VERTICALS.map((v) => {
+                {ordered.map((v) => {
                     const Icon = v.icon;
+                    const isRecommended = v.id === recommendedId;
                     return (
                         <button
                             key={v.id}
                             onClick={() => onPick(v.id)}
-                            className="text-left bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 hover:border-blue-400 hover:shadow cursor-pointer transition-all group"
+                            className={`text-left bg-white dark:bg-slate-900 border p-4 hover:shadow cursor-pointer transition-all group ${
+                                isRecommended
+                                    ? 'border-blue-500 dark:border-blue-500 ring-1 ring-blue-500/30 hover:border-blue-600'
+                                    : 'border-slate-200 dark:border-slate-800 hover:border-blue-400'
+                            }`}
                         >
                             <div className="flex items-start justify-between mb-3">
                                 <div className="w-9 h-9 flex items-center justify-center bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                                     <Icon size={18} weight="bold" className="text-slate-600 dark:text-slate-300" />
                                 </div>
-                                <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">
-                                    {v.plugins.length} plugins
-                                </span>
+                                {isRecommended ? (
+                                    <span className="text-[9px] font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400">
+                                        Recommended
+                                    </span>
+                                ) : (
+                                    <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">
+                                        {v.plugins.length} plugins
+                                    </span>
+                                )}
                             </div>
                             <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400">{v.label}</h3>
                             <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3 leading-snug">{v.summary}</p>
