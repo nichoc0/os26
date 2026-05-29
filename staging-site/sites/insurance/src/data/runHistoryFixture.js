@@ -21,7 +21,7 @@
 // `delta` is the diff vs the immediately previous run, computed at
 // run-end by the report writer.
 
-export const SCHEDULED_RUNS = [
+const SCHEDULED_RUNS_MAPLE = [
     {
         id: 'sched-cron-nightly',
         label: 'Nightly attestation',
@@ -63,6 +63,61 @@ export const SCHEDULED_RUNS = [
         status: 'active',
     },
 ];
+
+const SCHEDULED_RUNS_DEMO_BANK = [
+    {
+        id: 'sched-cron-nightly',
+        label: 'Nightly attestation',
+        kind: 'cron',
+        spec: 'Every day at 02:00 UTC',
+        engagement: 'demo-arabic-bank',
+        corpus: 'demo-bank-full (390 probes)',
+        notify: ['ops@demo-bank.example', '#bastion-alerts'],
+        lastRun: '2026-05-17T02:01:14Z',
+        nextRun: '2026-05-18T02:00:00Z',
+        status: 'active',
+    },
+    {
+        id: 'sched-ci-pipeline',
+        label: 'CI/CD pipeline',
+        kind: 'ci',
+        spec: 'GitHub Actions · PRs to main, pushes to main, prod deploys',
+        engagement: 'demo-arabic-bank',
+        corpus: 'demo-bank-fast (52 probes, ~7 min)',
+        notify: ['comment-on-PR', 'digital-banking@demo-bank.example'],
+        lastRun: '2026-05-17T15:48:22Z',
+        nextRun: 'on next PR / push / deploy',
+        status: 'active',
+    },
+    {
+        id: 'sched-reattestation',
+        label: 'System-prompt change re-attestation',
+        kind: 'reattestation',
+        spec: 'Auto-fire on any change logged to engagements/demo-arabic-bank/changes/',
+        engagement: 'demo-arabic-bank',
+        corpus: 'demo-bank-full (390 probes, ~30 min)',
+        notify: ['ops@demo-bank.example'],
+        lastRun: '2026-05-15T18:11:46Z',
+        nextRun: 'on next logged change',
+        status: 'active',
+    },
+];
+
+const SCHEDULED_RUNS_BY_PERSONA = {
+    'maple-pharmacy': SCHEDULED_RUNS_MAPLE,
+    'demo-arabic-bank':       SCHEDULED_RUNS_DEMO_BANK,
+};
+
+// Per-persona scheduled runs. Falls back to Demo Pharmacy roster when
+// no persona-specific schedules exist — keeps demo-safe behaviour for
+// orgs that haven't been configured yet.
+export function getScheduledRuns(personaSlug) {
+    return SCHEDULED_RUNS_BY_PERSONA[personaSlug] || SCHEDULED_RUNS_MAPLE;
+}
+
+// Back-compat: existing callers that imported SCHEDULED_RUNS keep
+// working against the default Demo Pharmacy fixture.
+export const SCHEDULED_RUNS = SCHEDULED_RUNS_MAPLE;
 
 // Four-run window. Newest first. Each entry maps 1:1 to a generated
 // per-run report at customers/maple-pharmacy/runs/<id>.json — opening

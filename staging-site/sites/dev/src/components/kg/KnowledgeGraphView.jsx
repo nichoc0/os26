@@ -7,6 +7,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { Graph, ArrowsClockwise } from '@phosphor-icons/react';
 import { useSessionStore } from '../../store/sessionStore';
+import { getAgentById } from '../../data/agentCatalog';
+import { usePersona } from '../../store/personaStore';
 
 const ENTITY_TYPES = [
   'Agent', 'Tool', 'Policy', 'Control', 'DataSource',
@@ -86,7 +88,7 @@ function tripleSourceCategory(t) {
   return 'policy';
 }
 
-function buildGraph(triples, filterTypes, filterSources) {
+function buildGraph(triples, filterTypes, filterSources, filterRawSources) {
   const nodeMap = new Map();
   const links = [];
   for (const t of triples) {
@@ -99,6 +101,15 @@ function buildGraph(triples, filterTypes, filterSources) {
     if (filterSources && filterSources.size > 0) {
       if (!filterSources.has(src)) continue;
     }
+    // Exact-source filter: used by the "View this policy in KG" flow
+    // out of PolicyConfig. The chip filter above (filterSources) is by
+    // CATEGORY ('uploaded' / 'log' / 'policy' / 'finding'); this one
+    // pins to a single specific source string like
+    // "policy-upload:scope_v1.md" so the operator sees only that
+    // policy's footprint.
+    if (filterRawSources && filterRawSources.size > 0) {
+      if (!filterRawSources.has(String(t.source || ''))) continue;
+    }
     if (!nodeMap.has(t.h)) nodeMap.set(t.h, { id: t.h, type: ht, label: entityLabel(t.h), sources: new Set() });
     if (!nodeMap.has(t.t)) nodeMap.set(t.t, { id: t.t, type: tt, label: entityLabel(t.t), sources: new Set() });
     nodeMap.get(t.h).sources.add(src);
@@ -108,10 +119,47 @@ function buildGraph(triples, filterTypes, filterSources) {
   return { nodes: Array.from(nodeMap.values()), links };
 }
 
-export default function KnowledgeGraphView({ embedded = false, onSelectNode } = {}) {
+export default function KnowledgeGraphView({ embedded = false, onSelectNode, agentId = null, agentLabel = null } = {}) {
+  const persona = usePersona();
+  const personaSlug = persona?.slug || 'maple-pharmacy';
   const baseTriples = useSessionStore((s) => s.kgTriples);
   const findingTriples = useSessionStore((s) => s.findingTriples);
-  const triples = useMemo(() => [...baseTriples, ...findingTriples], [baseTriples, findingTriples]);
+  const allTriples = useMemo(() => [...baseTriples, ...findingTriples], [baseTriples, findingTriples]);
+
+  // Agent-scoped subgraph: when an agent id is provided, restrict
+  // triples to those whose head/tail/relation mention the agent id or
+  // label (substring match). If the natural match yields a thin
+  // subgraph (< 5 distinct nodes), synthesize a per-agent skeleton
+  // showing channel + allowed/restricted tools + scope file + the
+  // load-bearing frameworks so the graph is never one disconnected
+  // dot per agent. Empty agentId = full graph (no filter, no synth).
+  const triples = useMemo(() => {
+    if (!agentId) return allTriples;
+    const needles = [agentId, agentLabel].filter(Boolean).map((s) => String(s).toLowerCase());
+    const hit = (s) => {
+      if (!s) return false;
+      const v = String(s).toLowerCase();
+      return needles.some((n) => v.includes(n));
+    };
+    const natural = allTriples.filter((t) => hit(t.h) || hit(t.t) || hit(t.r));
+    const distinctNodes = new Set();
+    for (const t of natural) { distinctNodes.add(t.h); distinctNodes.add(t.t); }
+    if (distinctNodes.size >= 5) return natural;
+    // Synthesize a per-agent skeleton (>= 7 edges) so the subgraph is
+    // always readable. Uses the canonical AGENT_CATALOG entry.
+    const a = getAgentById(personaSlug, agentId);
+    if (!a) return natural;
+    const head = `Agent:${a.label}`;
+    const synth = [
+      { h: head, t: `Channel:${a.channel}`,        r: 'serves_on',       source: 'agent_catalog' },
+      { h: head, t: 'ScopeFile:demo_pharmacy.md', r: 'scoped_by',       source: 'agent_catalog' },
+      { h: head, t: 'Framework:HIPAA',            r: 'aligns_to',       source: 'agent_catalog' },
+      { h: head, t: 'Framework:ISO_14971',        r: 'aligns_to',       source: 'agent_catalog' },
+      ...a.tools.allowed.slice(0, 3).map((tool) => ({ h: head, t: `Tool:${tool}`, r: 'may_call',         source: 'agent_catalog' })),
+      ...a.tools.restricted.slice(0, 2).map((tool) => ({ h: head, t: `Tool:${tool}`, r: 'restricted_from', source: 'agent_catalog' })),
+    ];
+    return [...natural, ...synth];
+  }, [allTriples, agentId, agentLabel, personaSlug]);
   const loading = useSessionStore((s) => s.kgLoading);
   const error = useSessionStore((s) => s.kgError);
   const fetchKg = useSessionStore((s) => s.fetchKg);
@@ -119,13 +167,37 @@ export default function KnowledgeGraphView({ embedded = false, onSelectNode } = 
   const [selectedNode, setSelectedNode] = useState(null);
   const [filterTypes, setFilterTypes] = useState(new Set());
   const [filterSources, setFilterSources] = useState(new Set());
+  // Initial raw-source filter from the URL. PolicyConfig's "View"
+  // button writes ?kgSource=<exact-source-tag> (e.g.
+  // policy-upload:scope_v1.md) so the graph opens already filtered to
+  // triples produced by THAT specific upload. This is distinct from
+  // the chip filter `filterSources` which is by category bucket
+  // (uploaded / log / policy / finding) — that was the wrong axis to
+  // pin a single policy by.
+  const initialFilterRawSources = (() => {
+    if (typeof window === 'undefined') return new Set();
+    const s = new URLSearchParams(window.location.search).get('kgSource');
+    return s ? new Set([s]) : new Set();
+  })();
+  const [filterRawSources, setFilterRawSources] = useState(initialFilterRawSources);
   const containerRef = useRef(null);
   const fgRef = useRef(null);
   const [dims, setDims] = useState({ w: 800, h: 600 });
 
+  // Clear the kgSource URL param once we've consumed it — otherwise a
+  // later back/forward navigation would re-seed the filter unexpectedly.
   useEffect(() => {
-    fetchKg();
-  }, [fetchKg]);
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('kgSource')) {
+      url.searchParams.delete('kgSource');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchKg(personaSlug);
+  }, [fetchKg, personaSlug]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -137,7 +209,7 @@ export default function KnowledgeGraphView({ embedded = false, onSelectNode } = 
     return () => obs.disconnect();
   }, []);
 
-  const graph = useMemo(() => buildGraph(triples, filterTypes, filterSources), [triples, filterTypes, filterSources]);
+  const graph = useMemo(() => buildGraph(triples, filterTypes, filterSources, filterRawSources), [triples, filterTypes, filterSources, filterRawSources]);
 
   // Push the d3-force simulation toward more node spacing — defaults pack
   // them tightly which made labels overlap and obscured source rings.
@@ -187,14 +259,29 @@ export default function KnowledgeGraphView({ embedded = false, onSelectNode } = 
     );
   };
 
+  // Per-type counts AFTER applying the source + raw-source filters but
+  // BEFORE the type filter itself. This is how many triples a given
+  // category chip would surface if the operator clicked it now —
+  // critical when a kgSource pin or an agent scope is already active,
+  // since the chips otherwise can read "Tool" → click → empty graph
+  // with no explanation. Chips with a 0 count are hidden entirely.
   const typesInData = useMemo(() => {
-    const seen = new Set();
+    const counts = {};
     for (const t of triples) {
-      seen.add(entityType(t.h));
-      seen.add(entityType(t.t));
+      // Match the same source / raw-source predicates buildGraph
+      // applies, so chip counts and the rendered graph stay in lockstep.
+      const src = tripleSourceCategory(t);
+      if (filterSources && filterSources.size > 0 && !filterSources.has(src)) continue;
+      if (filterRawSources && filterRawSources.size > 0 && !filterRawSources.has(String(t.source || ''))) continue;
+      const ht = entityType(t.h);
+      const tt = entityType(t.t);
+      counts[ht] = (counts[ht] || 0) + 1;
+      if (tt !== ht) counts[tt] = (counts[tt] || 0) + 1;
     }
-    return ENTITY_TYPES.filter((t) => seen.has(t));
-  }, [triples]);
+    return ENTITY_TYPES
+      .filter((type) => (counts[type] || 0) > 0)
+      .map((type) => ({ type, count: counts[type] }));
+  }, [triples, filterSources, filterRawSources]);
 
   const toggleType = (type) => {
     setFilterTypes((prev) => {
@@ -220,7 +307,7 @@ export default function KnowledgeGraphView({ embedded = false, onSelectNode } = 
             </p>
           </div>
           <button
-            onClick={() => fetchKg()}
+            onClick={() => fetchKg(personaSlug)}
             className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-widest border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-blue-500 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded-none cursor-pointer"
           >
             <ArrowsClockwise size={14} weight="bold" className={loading ? 'animate-spin' : ''} />
@@ -269,13 +356,13 @@ export default function KnowledgeGraphView({ embedded = false, onSelectNode } = 
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mr-2">
             Filter by category:
           </span>
-          {typesInData.map((type) => {
+          {typesInData.map(({ type, count }) => {
             const active = filterTypes.has(type);
             return (
               <button
                 key={type}
                 onClick={() => toggleType(type)}
-                className={`text-[11px] font-bold uppercase tracking-widest px-3 py-1 border rounded-none transition-colors cursor-pointer ${
+                className={`text-[11px] font-bold uppercase tracking-widest px-3 py-1 border rounded-none transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
                   active
                     ? 'border-blue-500 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10'
                     : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-400'
@@ -285,8 +372,10 @@ export default function KnowledgeGraphView({ embedded = false, onSelectNode } = 
                     ? undefined
                     : { boxShadow: `inset 4px 0 0 ${COLOR_BY_TYPE[type] || '#94a3b8'}` }
                 }
+                title={`${count} ${count === 1 ? 'triple' : 'triples'} matches "${type}" under the current source filter.`}
               >
                 {type}
+                <span className="text-[9px] font-mono opacity-60">{count}</span>
               </button>
             );
           })}
@@ -370,7 +459,25 @@ export default function KnowledgeGraphView({ embedded = false, onSelectNode } = 
           )}
           {!error && !loading && graph.nodes.length === 0 && (
             <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-400">
-              Nothing to display yet.
+              {(filterTypes.size > 0 || filterSources.size > 0 || filterRawSources.size > 0) ? (
+                <div className="max-w-md text-center">
+                  <p className="text-slate-500 dark:text-slate-300 font-semibold mb-1">No triples match the current filter.</p>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 mb-3">
+                    {filterRawSources.size > 0 && `Pinned to source: ${Array.from(filterRawSources).join(', ')}. `}
+                    {filterSources.size > 0 && `Source category: ${Array.from(filterSources).join(', ')}. `}
+                    {filterTypes.size > 0 && `Type filter active. `}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => { setFilterTypes(new Set()); setFilterSources(new Set()); setFilterRawSources(new Set()); }}
+                    className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer bg-transparent"
+                  >
+                    Clear filters — show full graph
+                  </button>
+                </div>
+              ) : (
+                <span>Nothing to display yet.</span>
+              )}
             </div>
           )}
         </div>

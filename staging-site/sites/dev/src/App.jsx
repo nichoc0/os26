@@ -15,17 +15,21 @@ import ProductionGate from './components/auth/ProductionGate';
 import DemoGate from './components/auth/DemoGate';
 import Docs from './components/views/Docs';
 import { fetchEvents, fetchAgents, fetchOverview, fetchEventDetail, fetchTimeline, fetchChangelog } from './components/data/api';
+import { usePersona } from './store/personaStore';
 
 const EMPTY_DATA = {
   events: [],
   agents: [],
   agentMeta: {
+    // Demo Pharmacy (default)
     sera_intake:         { color: '#2563eb', label: 'Sera (Intake)' },
     pharmacist_callback: { color: '#1e40af', label: 'Pharmacist Callback' },
     refill_router:       { color: '#3b82f6', label: 'Refill Router' },
     insurance_sync:      { color: '#1d4ed8', label: 'Insurance Sync' },
     triage_classifier:   { color: '#60a5fa', label: 'Triage Classifier' },
     compliance_monitor:  { color: '#475569', label: 'Compliance Monitor' },
+    // Demo Arabic Bank — single voice agent.
+    voice_assistant:          { color: '#0f3a5a', label: 'Voice Banking Assistant' },
   },
   overview: { total_requests: 0, total_cost: 0, avg_latency: 0, pii_exposures: 0, fleet_risk: 0, agents_monitored: 0 },
   timeline: [],
@@ -57,11 +61,11 @@ const LEGACY_REDIRECTS = {
   sockets:         { view: 'voice-testing', tab: 'sockets' },
   spawn:           { view: 'voice-testing', tab: 'spawn' },
   red:             { view: 'voice-testing', tab: 'red' },
-  agents:          { view: 'fleet', tab: 'agents' },
-  telemetry:       { view: 'fleet', tab: 'live' },
-  drilldown:       { view: 'fleet', tab: 'live' },
-  sessions:        { view: 'fleet', tab: 'sessions' },
-  vault:           { view: 'fleet', tab: 'sessions' },
+  agents:          { view: 'fleet', tab: 'activity' },
+  telemetry:       { view: 'fleet', tab: 'activity' },
+  drilldown:       { view: 'fleet', tab: 'activity' },
+  sessions:        { view: 'fleet', tab: 'activity' },
+  vault:           { view: 'fleet', tab: 'graph' },
   'knowledge-graph': { view: 'fleet', tab: 'graph' },
   'risk-coverage': { view: 'reports' },
   risk:            { view: 'reports' },
@@ -92,11 +96,23 @@ export default function App() {
   // /cli-login is a special, Clerk-gated route used by `bastion login` in the
   // CLI. Short-circuit before the dashboard renders so the rest of App's
   // data-loading effects don't fire.
-  if (typeof window !== 'undefined' && window.location.pathname === '/cli-login') {
+  //
+  // Path matching is BASE_URL-aware so the same checks work at root
+  // (e.g. dev server) and under /compliance/ (where the staging app is
+  // served). Without the strip, /compliance/docs would never match
+  // /docs and the user would 404 even though the bundle is loaded.
+  const routePath = (() => {
+    if (typeof window === 'undefined') return '/';
+    let p = window.location.pathname || '/';
+    const base = (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
+    if (base && p.startsWith(base)) p = p.slice(base.length);
+    return p || '/';
+  })();
+  if (routePath === '/cli-login') {
     return <CliLogin />;
   }
   // /docs — public quickstart for the SDK. Same short-circuit pattern.
-  if (typeof window !== 'undefined' && window.location.pathname === '/docs') {
+  if (routePath === '/docs') {
     return <Docs />;
   }
 
@@ -127,12 +143,15 @@ export default function App() {
   // surfaces its empty state. Anonymous viewers (demo) still get
   // the curated fixtures because the loadData fetch path runs.
   const { isSignedIn } = useUser();
+  const persona = usePersona();
+  // customerSlug = persona slug when it matches a published per-customer
+  // static-api folder (public/static-api/customers/<slug>/). Used by
+  // fetchAgents/fetchEvents/fetchOverview/fetchTimeline to load the
+  // org-scoped JSON before falling back to the global pharmacy seed.
+  const customerSlug = persona?.slug || null;
 
   const loadData = useCallback(async () => {
-    // OS26 demo: always load fixtures regardless of sign-in state. The original
-    // "tenant-clean for signed-in" branch was for the prod Bastion app — for
-    // this hackathon demo the static-api fixtures ARE the customer-personalised
-    // data the factory frontend agent writes.
+    // OS26 demo: always load fixtures regardless of sign-in state.
     try {
       const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.BASE_URL !== '/' ? import.meta.env.BASE_URL.replace(/\/$/, '') : '');
       const isProdApp = import.meta.env.VITE_APP_MODE === 'production';
@@ -148,10 +167,10 @@ export default function App() {
       };
 
       const [eventsResp, agentsResp, overviewResp, timelineResp, reportResp] = await Promise.all([
-        fetchEvents({ limit: 500 }),
-        fetchAgents(),
-        fetchOverview(),
-        fetchTimeline(14).catch(() => []),
+        fetchEvents({ limit: 500 }, { customerSlug }),
+        fetchAgents({ customerSlug }),
+        fetchOverview({ customerSlug }),
+        fetchTimeline(14, { customerSlug }).catch(() => []),
         fetchReport(),
       ]);
       if (reportResp) setReportData(reportResp);
@@ -252,7 +271,7 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [isSignedIn]);
+  }, [isSignedIn, customerSlug]);
 
   useEffect(() => {
     loadData();
@@ -286,19 +305,57 @@ export default function App() {
       setSelectedEvent(existing);
       return;
     }
-    // Fetch full details from API
-    fetchEventDetail(selectedEventId)
+    // Fetch full details from API, scoped to the active customer so
+    // per-customer per-event JSONs win the override race. When the
+    // per-customer file doesn't exist, the existing list entry is
+    // the source of truth — DO NOT fall through to the global
+    // pharmacy event-detail fixtures (that's how Bahrain Bank
+    // surfaces leaked `check_rx_history(patient_id, drug=metformin)`
+    // pharmacy tool calls in the inspector).
+    fetchEventDetail(selectedEventId, { customerSlug })
       .then(event => setSelectedEvent(event))
       .catch(() => setSelectedEvent(existing || null));
-  }, [selectedEventId, data.events]);
+  }, [selectedEventId, data.events, customerSlug]);
 
   const handleSearch = (targetView, queryText) => {
     if (targetView && targetView !== currentView) setCurrentView(targetView);
   };
 
   const handleInspectEvent = (eventId) => {
-    // Live Activity lives as a tab inside Fleet now; route there.
-    setSelectedEventId(eventId);
+    // Live Activity lives as the Activity tab inside Fleet now. To land
+    // the operator on the actual inspected event (not the agent-picker
+    // grid) we must: (1) open the event's own agent feed via ?agent=,
+    // (2) force the Activity tab, (3) select the event. Used by the
+    // overview Action-Required queue AND the Risk Notification Rail —
+    // both previously routed at the dead 'telemetry' view name and
+    // dumped the user on the overview with nothing selected.
+    if (eventId == null) {
+      // "View all" — open the cross-agent firehose, no specific row.
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        url.searchParams.set('agent', 'all');
+        window.history.replaceState({}, '', url.toString());
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }
+      setSelectedEventId(null);
+    } else {
+      const ev = (data?.events || []).find((e) => e.id === eventId);
+      const agentId = ev?.agent || 'all';
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        url.searchParams.set('agent', agentId);
+        window.history.replaceState({}, '', url.toString());
+        // AgentDirectoryWithDetail / GraphTab seed their agent state on
+        // mount + popstate. Fire popstate so an already-mounted Fleet
+        // view re-reads ?agent and opens the right feed instead of the
+        // stale directory grid.
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }
+      setSelectedEventId(eventId);
+    }
+    // Force the Activity tab (a prior Graph-tab visit must not swallow
+    // the event). nonce bump re-fires FleetView's tabRequest effect.
+    setTabRequest((r) => ({ view: 'fleet', tab: 'activity', nonce: r.nonce + 1 }));
     if (currentView !== 'fleet') setCurrentView('fleet');
   };
 
@@ -315,7 +372,7 @@ export default function App() {
 
   const renderView = () => {
     switch (currentView) {
-      case 'overview':      return <FleetOverview data={data} loading={loading} setCurrentView={setCurrentView} onInspect={handleInspectEvent} reportData={reportData} />;
+      case 'overview':      return <FleetOverview data={data} loading={loading} setCurrentView={setCurrentView} navigate={navigate} onInspect={handleInspectEvent} reportData={reportData} />;
       case 'voice-testing': return (
         <VoiceTestingView
           setCurrentView={setCurrentView}
@@ -332,28 +389,19 @@ export default function App() {
           selectedEvent={selectedEvent}
           selectedEventId={selectedEventId}
           setSelectedEventId={setSelectedEventId}
-          initialTab={initialTabForCurrent || 'agents'}
+          initialTab={initialTabForCurrent || 'activity'}
+          tabRequest={tabRequest.view === 'fleet' ? tabRequest : null}
         />
       );
       case 'reports':       return <ReportsView data={data} navigate={navigate} tabRequest={tabRequest.view === 'reports' ? tabRequest : null} />;
-      case 'config':        return <PolicyConfig data={data} setCurrentView={setCurrentView} />;
-      default:              return <FleetOverview data={data} loading={loading} setCurrentView={setCurrentView} onInspect={handleInspectEvent} reportData={reportData} />;
+      case 'config':        return <PolicyConfig data={data} setCurrentView={setCurrentView} navigate={navigate} />;
+      default:              return <FleetOverview data={data} loading={loading} setCurrentView={setCurrentView} navigate={navigate} onInspect={handleInspectEvent} reportData={reportData} />;
     }
   };
 
   return (
     <DemoGate><ProductionGate>
-      {/* Tiny SDK-version banner — surfaces the latest published CLI version
-          so customers on stale local installs know to upgrade. */}
-      <div className="fixed top-0 inset-x-0 z-50 bg-slate-900 text-slate-300 text-[10px] font-mono leading-none px-3 py-1 flex justify-center items-center gap-2 pointer-events-none">
-        <span className="opacity-60">latest SDK:</span>
-        <span className="text-blue-400 font-bold">@pistonsolutions/bastion@0.4.14</span>
-        <span className="opacity-40">·</span>
-        <span className="text-blue-400 font-bold">bastion-red==0.4.14</span>
-        <span className="opacity-40">·</span>
-        <a href="/docs" className="text-blue-400 hover:underline pointer-events-auto opacity-80 hover:opacity-100">docs →</a>
-      </div>
-      <div className="min-h-screen font-sans bg-slate-50 dark:bg-[#0B1120] text-slate-800 dark:text-slate-300 flex transition-colors duration-300 tech-grid pt-5">
+      <div className="min-h-screen font-sans bg-slate-50 dark:bg-[#0B1120] text-slate-800 dark:text-slate-300 flex transition-colors duration-300 tech-grid">
         <SideNav currentView={currentView} setCurrentView={setCurrentView} />
 
         <main className="flex-1 sm:ml-[220px] h-screen overflow-y-auto overflow-x-hidden flex flex-col pb-16 sm:pb-0 relative z-10">
@@ -376,13 +424,17 @@ export default function App() {
         />
         {/* Risk notification rail — Windows-style toast stack pinned to the
             right edge with deep-links into the Live Activity inspector and a
-            persistent Slack/email connect button. */}
+            persistent email connect button. */}
         <RiskNotificationRail
           data={data}
           currentView={currentView}
           navigate={(view, eventId) => {
-            if (eventId !== undefined) setSelectedEventId(eventId);
-            setCurrentView(view);
+            // The rail only ever wants Live Activity — either a specific
+            // event (eventId set) or the full firehose (eventId null).
+            // Route both through handleInspectEvent so the correct agent
+            // feed + Activity tab open. Ignore `view` ('telemetry' is a
+            // dead name); the destination is always Fleet → Activity.
+            handleInspectEvent(eventId ?? null);
           }}
         />
       </div>

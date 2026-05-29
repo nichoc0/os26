@@ -22,6 +22,7 @@ export function FleetView({
     selectedEventId,
     setSelectedEventId,
     initialTab = 'activity',
+    tabRequest = null,
 }) {
     const tabs = [
         { id: 'activity', label: 'Activity', icon: Eye },
@@ -29,6 +30,17 @@ export function FleetView({
     ];
     const initial = tabs.find((t) => t.id === initialTab) ? initialTab : 'activity';
     const [tab, setTab] = useState(initial);
+
+    // Cross-view tab jump from App.jsx's navigate(view, tab). The nonce
+    // changes on every navigate so repeat targets re-fire the effect.
+    // Required so PolicyConfig's "View" can land the user on Fleet →
+    // Graph instead of the default Activity tab.
+    useEffect(() => {
+        if (!tabRequest?.tab) return;
+        if (!tabs.find((t) => t.id === tabRequest.tab)) return;
+        setTab(tabRequest.tab);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tabRequest?.nonce]);
 
     return (
         <div className="flex flex-col h-full">

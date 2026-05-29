@@ -19,7 +19,7 @@ import ExcelJS from 'exceljs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
-import { UNDERWRITING } from '../src/underwriting/data.js';
+import { UNDERWRITING_PHARMACY, UNDERWRITING_BANK } from '../src/underwriting/data.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -84,13 +84,13 @@ function severityStyleFor(text) {
 
 // ---------------------------- build ---------------------------- //
 
-async function build() {
+async function buildWorkbook(UNDERWRITING) {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Bastion Security';
   wb.lastModifiedBy = 'Bastion Underwriting Engine';
   wb.created = new Date();
   wb.modified = new Date();
-  wb.title = 'Bastion AI-Agent Cyber Self-Assessment';
+  wb.title = 'Bastion AI-Agent Risk Assessment';
   wb.subject = `${UNDERWRITING.meta.client} — ${UNDERWRITING.meta.tier} tier`;
 
   // ========== Cover / Details sheet ==========
@@ -99,7 +99,7 @@ async function build() {
   cover.getColumn(2).width = 80;
 
   cover.mergeCells('A1:B1');
-  cover.getCell('A1').value = 'BASTION AI-AGENT CYBER SELF-ASSESSMENT';
+  cover.getCell('A1').value = 'BASTION AI-AGENT RISK ASSESSMENT';
   applyStyle(cover.getCell('A1'), style.coverTitle);
   cover.getRow(1).height = 36;
 
@@ -132,7 +132,7 @@ async function build() {
   r++;
   for (const sec of UNDERWRITING.sections) {
     cover.getCell(r, 1).value = `${sec.id}. ${sec.title}`;
-    cover.getCell(r, 2).value = sec.bastion_unique ? 'Bastion-specific (AI-native control)' : 'Standard cyber control (Marsh-aligned)';
+    cover.getCell(r, 2).value = sec.bastion_unique ? 'Bastion AI-native evidence' : 'Standard underwriting evidence';
     applyStyle(cover.getCell(r, 1), style.questionText);
     applyStyle(cover.getCell(r, 2), { font: { size: 10, color: sec.bastion_unique ? BLUE_600 : SLATE_500, italic: !sec.bastion_unique }, alignment: { vertical: 'middle', indent: 1 } });
     r++;
@@ -157,7 +157,7 @@ async function build() {
     // Banner row
     ws.mergeCells(1, 1, 1, 4);
     const banner = ws.getCell(1, 1);
-    banner.value = `${section.id}. ${section.title.toUpperCase()}${section.bastion_unique ? '   ·   BASTION-SPECIFIC' : ''}`;
+    banner.value = `${section.id}. ${section.title.toUpperCase()}`;
     applyStyle(banner, style.sectionTitle);
     ws.getRow(1).height = 32;
 
@@ -292,15 +292,31 @@ async function build() {
     ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3, showGridLines: false }];
   }
 
-  // Write file
-  const slug = String(UNDERWRITING.meta.client).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  const out = resolve(OUT_DIR, `underwriting-${slug}.xlsx`);
-  await wb.xlsx.writeFile(out);
-  console.log(`[build-underwriting-xlsx] wrote ${out}`);
+  return wb;
+}
 
-  // Also write a stable "latest" copy the frontend can always link to
+async function build() {
+  // Per-persona workbooks, keyed by the persona slug used in
+  // src/store/personaStore.js so the frontend can pick the right file
+  // off /public.
+  const personas = [
+    { slug: 'maple-pharmacy',    data: UNDERWRITING_PHARMACY },
+    { slug: 'demo-arabic-bank',  data: UNDERWRITING_BANK },
+  ];
+
+  for (const { slug, data } of personas) {
+    const wb = await buildWorkbook(data);
+    const out = resolve(OUT_DIR, `underwriting-${slug}.xlsx`);
+    await wb.xlsx.writeFile(out);
+    console.log(`[build-underwriting-xlsx] wrote ${out}`);
+  }
+
+  // Stable "latest" alias = pharmacy (back-compat for any caller still
+  // hard-linking to underwriting-latest.xlsx). Persona-aware callers
+  // should use underwriting-<slug>.xlsx via ExportMenu.
+  const latestWb = await buildWorkbook(UNDERWRITING_PHARMACY);
   const latest = resolve(OUT_DIR, 'underwriting-latest.xlsx');
-  await wb.xlsx.writeFile(latest);
+  await latestWb.xlsx.writeFile(latest);
   console.log(`[build-underwriting-xlsx] wrote ${latest}`);
 }
 

@@ -33,8 +33,13 @@ export default function LiveVoiceView({ embedded = false } = {}) {
     ? `${gateway}/v1/calls/active?bearer=${encodeURIComponent(bearer)}`
     : `${gateway}/v1/calls/active`;
 
-  const [reachable, setReachable] = useState(null);
-  const [activeCount, setActiveCount] = useState(null);
+  // Default to "ready / zero active" so the widget reads "No active
+  // calls" immediately instead of getting stuck on "Connecting…" while
+  // the bearer-hook mints or the first poll lands. A real failure
+  // (gateway 4xx/5xx / network error) will flip `reachable=false`
+  // within one poll cycle (~5s).
+  const [reachable, setReachable] = useState(true);
+  const [activeCount, setActiveCount] = useState(0);
 
   useEffect(() => {
     // Wait for the bk_* mint before polling. Polling without it would
@@ -146,9 +151,6 @@ function StatusPill({ reachable, activeCount, compact = false }) {
   const cls = compact
     ? 'text-[9px] uppercase tracking-widest font-semibold px-1.5 py-0.5 rounded-none'
     : 'text-[10px] uppercase tracking-widest font-mono px-2 py-1 rounded-none';
-  if (reachable === null) {
-    return <span className={`${cls} bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400`}>Connecting…</span>;
-  }
   if (reachable === false) {
     // Compact mode hides the gateway-offline badge entirely — the
     // CompactEmpty body already explains "no active calls" and the

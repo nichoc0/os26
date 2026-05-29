@@ -13,12 +13,11 @@
 //   - Each toast: timestamp, agent, action chip, query snippet, "Inspect"
 //     deep-link that pivots to Live Activity with that event selected.
 //   - "View all risks" footer → Live Activity filtered to High.
-//   - "Connect Slack/email" button + first-time nag toast that respects
+//   - "Connect email" button + first-time nag toast that respects
 //     localStorage (`bastion:integrationNagDismissed=1`).
-import { useEffect, useMemo, useState } from 'react';
-import { Bell, X, ArrowRight, SlackLogo, EnvelopeSimple, BellSlash } from '@phosphor-icons/react';
-
-const NAG_KEY = 'bastion:integrationNagDismissed';
+import { useMemo, useState } from 'react';
+import { Bell, X, ArrowRight } from '@phosphor-icons/react';
+import { useModeStore } from '../../store/modeStore';
 
 function isHighRisk(event) {
   const action = (event.action || '').toLowerCase();
@@ -47,49 +46,33 @@ function getQueryPreview(event) {
   return userMsg?.content || event.query_preview || event.content || '';
 }
 
-function ActionChip({ action }) {
+function ActionChip({ action, mode }) {
   const map = {
     block:  { label: 'Blocked',  cls: 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-900' },
     redact: { label: 'Redacted', cls: 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-900' },
     flag:   { label: 'Flagged',  cls: 'bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-900' },
   };
-  const m = map[(action || '').toLowerCase()] || { label: action || 'High risk', cls: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700' };
+  // In monitoring (shadow) mode the agent never actually blocks or
+  // redacts — Bastion only observes and flags. Showing "BLOCKED" there
+  // is misleading (the call still went through). Collapse block/redact
+  // to "Flagged" in monitoring mode, matching LiveTelemetry.getOutcome.
+  let key = (action || '').toLowerCase();
+  if (mode === 'shadow' && (key === 'block' || key === 'redact')) key = 'flag';
+  const m = map[key] || { label: action || 'High risk', cls: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700' };
   return <span className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 border ${m.cls}`}>{m.label}</span>;
 }
 
 export function RiskNotificationRail({ data, navigate, currentView }) {
   const events = data?.events || [];
   const agentMeta = data?.agentMeta || {};
+  const mode = useModeStore((s) => s.mode);
   const [open, setOpen] = useState(false);
-  const [showIntegrationNag, setShowIntegrationNag] = useState(false);
-  const [dismissed, setDismissed] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return window.localStorage?.getItem(NAG_KEY) === '1';
-  });
 
   const highRisk = useMemo(() => {
     return events
       .filter(isHighRisk)
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   }, [events]);
-
-  // First-time nag: when the panel is first opened AND the user hasn't
-  // permanently dismissed it AND there's at least one high-risk event,
-  // surface the integration prompt. Honours the localStorage flag forever.
-  useEffect(() => {
-    if (!open) return;
-    if (dismissed) return;
-    if (highRisk.length === 0) return;
-    setShowIntegrationNag(true);
-  }, [open, dismissed, highRisk.length]);
-
-  const dismissNag = (forever) => {
-    setShowIntegrationNag(false);
-    if (forever) {
-      try { window.localStorage?.setItem(NAG_KEY, '1'); } catch {}
-      setDismissed(true);
-    }
-  };
 
   const goToEvent = (eventId) => {
     setOpen(false);
@@ -156,38 +139,6 @@ export function RiskNotificationRail({ data, navigate, currentView }) {
             </button>
           </div>
 
-          {/* Integration nag — first-time prompt, dismissible */}
-          {showIntegrationNag && (
-            <div className="shrink-0 mx-3 mt-3 p-3 border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/60 dark:bg-indigo-950/30">
-              <div className="flex items-start gap-2 mb-2">
-                <Bell size={14} weight="duotone" className="text-indigo-500 mt-0.5 shrink-0" />
-                <p className="text-[11px] text-slate-700 dark:text-slate-300 leading-snug">
-                  Want to be paged when a high-risk event fires? Connect Slack or email so the team sees these in real time.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <button className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700 transition-colors border-none cursor-pointer rounded-none">
-                  <SlackLogo size={12} weight="bold" /> Slack
-                </button>
-                <button className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-widest bg-slate-700 text-white hover:bg-slate-800 transition-colors border-none cursor-pointer rounded-none">
-                  <EnvelopeSimple size={12} weight="bold" /> Email
-                </button>
-                <button
-                  onClick={() => dismissNag(false)}
-                  className="ml-auto text-[10px] font-mono text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline bg-transparent border-none cursor-pointer"
-                >
-                  Later
-                </button>
-                <button
-                  onClick={() => dismissNag(true)}
-                  className="flex items-center gap-1 text-[10px] font-mono text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline bg-transparent border-none cursor-pointer"
-                >
-                  <BellSlash size={11} weight="bold" /> Don't remind me
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* Toast list */}
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
             {highRisk.length === 0 ? (
@@ -212,7 +163,7 @@ export function RiskNotificationRail({ data, navigate, currentView }) {
                     >
                       {agent.label}
                     </span>
-                    <ActionChip action={event.action} />
+                    <ActionChip action={event.action} mode={mode} />
                   </div>
                   <p className="text-[11px] text-slate-700 dark:text-slate-300 leading-snug line-clamp-2">
                     {getQueryPreview(event) || '(no query preview)'}
@@ -225,8 +176,9 @@ export function RiskNotificationRail({ data, navigate, currentView }) {
             })}
           </div>
 
-          {/* Footer — view all + connect button (persistent, always visible) */}
-          <div className="shrink-0 border-t border-slate-200 dark:border-slate-800 p-3 space-y-2">
+          {/* Footer — view all in Live Activity. (Slack/email paging
+              removed — no working integration yet; the page was a stub.) */}
+          <div className="shrink-0 border-t border-slate-200 dark:border-slate-800 p-3">
             <button
               onClick={goToAllRisks}
               className="w-full flex items-center justify-center gap-2 px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer border-none rounded-none"
@@ -234,17 +186,6 @@ export function RiskNotificationRail({ data, navigate, currentView }) {
               View all in Live Activity
               <ArrowRight size={12} weight="bold" />
             </button>
-            {/* Persistent connect button — even after the nag is permanently
-                dismissed, this stays so users can opt in later. */}
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-600 shrink-0">Pages</span>
-              <button className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700 transition-colors border-none cursor-pointer rounded-none">
-                <SlackLogo size={12} weight="bold" /> Slack
-              </button>
-              <button className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest bg-slate-700 text-white hover:bg-slate-800 transition-colors border-none cursor-pointer rounded-none">
-                <EnvelopeSimple size={12} weight="bold" /> Email
-              </button>
-            </div>
           </div>
         </div>
       )}

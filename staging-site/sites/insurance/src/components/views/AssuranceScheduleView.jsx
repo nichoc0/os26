@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Clock, GitBranch, GitPullRequest, Rocket, ArrowsClockwise, Cursor, Copy, CaretRight, Plus, ClockCounterClockwise, ArrowSquareOut } from '@phosphor-icons/react';
-import { SCHEDULED_RUNS, TRIGGER_META } from '../../data/runHistoryFixture';
+import { getScheduledRuns, TRIGGER_META } from '../../data/runHistoryFixture';
 import { useIsTenant } from '../../data/useIsTenant';
+import { usePersona } from '../../store/personaStore';
 
 // Continuous-assurance schedule view. Lives under Voice Testing.
 // Surfaces the three things a continuous-attestation buyer wants to
@@ -35,6 +36,8 @@ export default function AssuranceScheduleView({ setCurrentView, navigate, onSche
     const [openIntegration, setOpenIntegration] = useState(null);
     const [sdk, setSdk] = useState('npm'); // 'npm' | 'pypi'
     const isTenant = useIsTenant();
+    const persona = usePersona();
+    const schedules = getScheduledRuns(persona?.slug);
 
     return (
         <div className="w-full max-w-[1400px] mx-auto px-6 py-6 space-y-6">
@@ -66,7 +69,7 @@ export default function AssuranceScheduleView({ setCurrentView, navigate, onSche
                 <header className="px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <h3 className="text-[11px] font-bold uppercase tracking-widest text-slate-700 dark:text-slate-200">Active schedules</h3>
-                        <span className="text-[10px] text-slate-400">{isTenant ? 0 : SCHEDULED_RUNS.length} configured</span>
+                        <span className="text-[10px] text-slate-400">{isTenant ? 0 : schedules.length} configured</span>
                     </div>
                     <button
                         onClick={() => onScheduleNew ? onScheduleNew() : setCurrentView?.('voice-testing')}
@@ -85,7 +88,7 @@ export default function AssuranceScheduleView({ setCurrentView, navigate, onSche
                     </div>
                 ) : (
                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {SCHEDULED_RUNS.map((s) => {
+                    {schedules.map((s) => {
                         const Icon = TRIGGER_ICONS[s.kind] || Clock;
                         const meta = TRIGGER_META[s.kind] || { label: s.kind, hint: '' };
                         return (
@@ -132,19 +135,30 @@ export default function AssuranceScheduleView({ setCurrentView, navigate, onSche
                             Same Bastion SDK in every pipeline. Drop the snippet in, set <code className="font-mono text-[10px] px-1 py-0.5 bg-slate-100 dark:bg-slate-800">BASTION_API_KEY</code> as a secret, exit non-zero on new high-or-critical. Pick your SDK below.
                         </p>
                     </div>
-                    <div className="flex border border-slate-300 dark:border-slate-700 shrink-0">
-                        <button
-                            onClick={() => setSdk('npm')}
-                            className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest cursor-pointer ${sdk === 'npm' ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
+                    <div className="flex items-center gap-3 shrink-0">
+                        <a
+                            href={`${import.meta.env.BASE_URL}docs`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
+                            title="Open the full Bastion SDK docs in a new tab."
                         >
-                            npm
-                        </button>
-                        <button
-                            onClick={() => setSdk('pypi')}
-                            className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest cursor-pointer border-l border-slate-300 dark:border-slate-700 ${sdk === 'pypi' ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
-                        >
-                            pypi
-                        </button>
+                            Docs <ArrowSquareOut size={10} />
+                        </a>
+                        <div className="flex border border-slate-300 dark:border-slate-700">
+                            <button
+                                onClick={() => setSdk('npm')}
+                                className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest cursor-pointer ${sdk === 'npm' ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
+                            >
+                                npm
+                            </button>
+                            <button
+                                onClick={() => setSdk('pypi')}
+                                className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest cursor-pointer border-l border-slate-300 dark:border-slate-700 ${sdk === 'pypi' ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
+                            >
+                                pypi
+                            </button>
+                        </div>
                     </div>
                 </header>
                 <div className="px-5 pt-3 pb-1 text-[11px] text-slate-600 dark:text-slate-300 flex items-center gap-2">

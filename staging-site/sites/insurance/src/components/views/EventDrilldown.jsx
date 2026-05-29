@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Eye, Spinner, Wrench, ShieldWarning, MagnifyingGlass, ArrowRight, Lightbulb, CaretDown, CaretUp } from '@phosphor-icons/react';
 import { AgentBadge } from '../ui/AgentBadge';
 import { useModeStore, resolveAppliedAction } from '../../store/modeStore';
+import { actionIdFor } from '../../data/actionId';
+import { useDispositionStore, useDispositionFor, DISPOSITION_DESTINATION } from '../../store/dispositionStore';
+import { usePersona } from '../../store/personaStore';
 
 // Inline collapsible-with-preview block. Per Luyun's "way too much happening
 // on this page" — every drilldown section gets its own toggle so reviewers
@@ -427,7 +430,22 @@ export function DrilldownView({ event, agentMeta, onBack }) {
   const mode = useModeStore((s) => s.mode);
   const intended = (event.action || (event.flags?.includes('blocked_action') ? 'block' : event.flags?.includes('pii_exposure') ? 'redact' : event.flags?.length ? 'flag' : 'pass')).toLowerCase();
   const action = resolveAppliedAction(intended, mode);
-  const [disposition, setDisposition] = useState(null);
+  // Persisted disposition (Yousuf 2026-05-27): when an item is approved
+  // or rejected, the decision survives the next page load and is
+  // reflected in the Inspector's Needs Attention / Recently Resolved
+  // lists. Persona-scoped so cross-org demos don't bleed.
+  const persona = usePersona();
+  const personaSlug = persona?.slug || 'default';
+  const hydrate = useDispositionStore((s) => s.hydrate);
+  const setDispositionInStore = useDispositionStore((s) => s.setDisposition);
+  const clearDispositionInStore = useDispositionStore((s) => s.clearDisposition);
+  useEffect(() => { hydrate(personaSlug); }, [hydrate, personaSlug]);
+  const dispositionRecord = useDispositionFor(personaSlug, event?.id);
+  const disposition = dispositionRecord?.state || null;
+  const setDisposition = (next) => {
+    if (next == null) clearDispositionInStore(personaSlug, event.id);
+    else setDispositionInStore(personaSlug, event.id, next);
+  };
   const isFlaggedOrBlocked = ['flag', 'block'].includes(action.toLowerCase());
 
   return (
@@ -448,6 +466,18 @@ export function DrilldownView({ event, agentMeta, onBack }) {
         </button>
         <div className="flex-1">
           <div className="flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                  navigator.clipboard.writeText(actionIdFor(event)).catch(() => {});
+                }
+              }}
+              className="text-[11px] font-mono font-bold text-slate-700 dark:text-slate-200 px-2 py-0.5 border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer rounded-none"
+              title="Click to copy this action ID"
+            >
+              {actionIdFor(event)}
+            </button>
             <AgentBadge agent={event.agent} agentMeta={agentMeta} />
             <span className="text-[11px] font-mono text-slate-500">{event.model || ''}</span>
             <span className="text-[11px] text-slate-500">{event.timestamp ? new Date(event.timestamp).toLocaleString() : ''}</span>
@@ -486,8 +516,18 @@ export function DrilldownView({ event, agentMeta, onBack }) {
             {disposition === 'approved' ? 'Approved' : 'Rejected'}
           </span>
           <span className="text-[11px] text-slate-500 dark:text-slate-400">
-            {disposition === 'approved' ? 'Marked as safe — moved to resolved queue' : 'Block confirmed — logged to incident register'}
+            {disposition === 'approved' ? 'Marked as safe' : 'Block confirmed'}
+            <span className="mx-1.5 text-slate-300 dark:text-slate-600">→</span>
+            <span className="font-semibold text-slate-700 dark:text-slate-300">{dispositionRecord?.destination || DISPOSITION_DESTINATION[disposition]}</span>
           </span>
+          <button
+            type="button"
+            onClick={() => setDisposition(null)}
+            className="ml-auto text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 bg-transparent border-0 cursor-pointer"
+            title="Undo this decision — moves the event back to Needs Attention."
+          >
+            Undo
+          </button>
         </div>
       )}
 

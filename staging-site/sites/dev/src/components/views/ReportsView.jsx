@@ -27,25 +27,40 @@ const REPORTS = [
         generatedAt: '2026-05-17',
         period: '2026-04-17 → 2026-05-17',
         reportId: 'BASTION-ATT-2026-05-17-DEMO',
-        probes: 56,
-        violations: 4,
-        refusals: 2,
+        probes: 390,
+        violations: 8,
+        refusals: 304,
         size: '17 KB',
         status: 'live',
     },
     {
-        id: 'underwriting-acme-2026-05-17',
+        id: 'underwriting-maple-pharmacy-2026-05-17',
         type: 'underwriting',
         title: 'Underwriting Report',
-        customer: 'Acme Logistics',
-        customerSlug: 'acme-logistics',
+        customer: 'Demo Pharmacy',
+        customerSlug: 'maple-pharmacy',
         generatedAt: '2026-05-17',
         period: '2026-04-17 → 2026-05-17',
-        reportId: 'BASTION-UW-2026-05-17-ACME',
-        probes: 247,
+        reportId: 'BASTION-UW-2026-05-17-DEMO',
+        probes: 390,
         violations: 8,
-        refusals: 184,
+        refusals: 304,
         size: '94 KB',
+        status: 'live',
+    },
+    {
+        id: 'posture-demo-arabic-bank-2026-05-17',
+        type: 'posture',
+        title: 'Posture Report',
+        customer: 'Demo Arabic Bank',
+        customerSlug: 'demo-arabic-bank',
+        generatedAt: '2026-05-17',
+        period: '2026-04-17 → 2026-05-17',
+        reportId: 'BASTION-ATT-2026-05-17-BANK',
+        probes: 390,
+        violations: 8,
+        refusals: 304,
+        size: '21 KB',
         status: 'live',
     },
 ];
@@ -58,13 +73,13 @@ const TYPE_META = {
 export default function ReportsView({ data, navigate, tabRequest = null }) {
     const persona = usePersona();
     const isTenant = useIsTenant();
-    // When the URL carries ?share=TOKEN, jump straight into the posture
-    // report detail (Vanta Trust Center pattern — recipient lands on the
-    // doc, not the Reports list).
+    // When the URL carries ?share=TOKEN or ?audience=audit, jump straight
+    // into the posture report detail (Vanta Trust Center pattern —
+    // recipient lands on the doc, not the Reports list).
     const [open, setOpen] = useState(() => {
         if (typeof window === 'undefined') return null;
         const p = new URLSearchParams(window.location.search);
-        if (!p.get('share')) return null;
+        if (!p.get('share') && p.get('audience') !== 'audit') return null;
         return REPORTS.find((r) => r.type === 'posture') || null;
     });
     const [view, setView] = useState('grid');
@@ -171,33 +186,39 @@ export default function ReportsView({ data, navigate, tabRequest = null }) {
                             {tab === 'risk' && `Hazard-risk decomposition for ${persona.label}. Severity counts mapped onto ${persona.frameworks.join(' · ')} controls.`}
                         </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <div className="relative">
-                            <MagnifyingGlass size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                            <input
-                                value={query}
-                                onChange={(e) => setQuery(e.target.value)}
-                                placeholder="Search reports"
-                                className="text-xs pl-7 pr-3 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded-none w-56 focus:outline-none focus:border-blue-500"
-                            />
+                    {/* Search input + grid/list toggle only apply to the
+                        Reports catalog. Hidden on Run history and Risk so
+                        the toolbar isn't cluttered with affordances that
+                        do nothing on those tabs. */}
+                    {tab === 'reports' && (
+                        <div className="flex items-center gap-2">
+                            <div className="relative">
+                                <MagnifyingGlass size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input
+                                    value={query}
+                                    onChange={(e) => setQuery(e.target.value)}
+                                    placeholder="Search reports"
+                                    className="text-xs pl-7 pr-3 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded-none w-56 focus:outline-none focus:border-blue-500"
+                                />
+                            </div>
+                            <div className="flex border border-slate-300 dark:border-slate-700">
+                                <button
+                                    onClick={() => setView('grid')}
+                                    className={`px-2 py-1.5 cursor-pointer ${view === 'grid' ? 'bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
+                                    title="Grid view"
+                                >
+                                    <SquaresFour size={14} weight={view === 'grid' ? 'bold' : 'regular'} />
+                                </button>
+                                <button
+                                    onClick={() => setView('list')}
+                                    className={`px-2 py-1.5 cursor-pointer ${view === 'list' ? 'bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
+                                    title="List view"
+                                >
+                                    <ListBullets size={14} weight={view === 'list' ? 'bold' : 'regular'} />
+                                </button>
+                            </div>
                         </div>
-                        <div className="flex border border-slate-300 dark:border-slate-700">
-                            <button
-                                onClick={() => setView('grid')}
-                                className={`px-2 py-1.5 cursor-pointer ${view === 'grid' ? 'bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
-                                title="Grid view"
-                            >
-                                <SquaresFour size={14} weight={view === 'grid' ? 'bold' : 'regular'} />
-                            </button>
-                            <button
-                                onClick={() => setView('list')}
-                                className={`px-2 py-1.5 cursor-pointer ${view === 'list' ? 'bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
-                                title="List view"
-                            >
-                                <ListBullets size={14} weight={view === 'list' ? 'bold' : 'regular'} />
-                            </button>
-                        </div>
-                    </div>
+                    )}
                 </div>
                 <div className="flex gap-1 -mb-px">
                     <SubTab id="reports"  label="Reports"                icon={FileText}              active={tab === 'reports'} onClick={() => setTab('reports')} />
@@ -233,7 +254,26 @@ export default function ReportsView({ data, navigate, tabRequest = null }) {
                 )}
                 {tab === 'risk' && (
                     <div className="pt-2">
-                        <RiskBreakdown reportData={fleetReportFixture(persona.slug)} persona={persona} setCurrentView={() => {}} />
+                        <RiskBreakdown
+                            reportData={fleetReportFixture(persona.slug)}
+                            persona={persona}
+                            setCurrentView={(view) => {
+                                // Map RiskBreakdown's internal view names to the
+                                // App-level switch. RiskBreakdown was originally a
+                                // child of an in-page tabs harness with views like
+                                // 'agents'/'telemetry'/'policy'/'report'; mounted
+                                // inside ReportsView those names don't exist at the
+                                // App level. Bridge them here so the top-right
+                                // links on each block actually navigate (per
+                                // Yousuf's 2026-05-27 feedback: "bottom 2 should
+                                // redirect to the relevant page in the agents
+                                // section").
+                                if (view === 'agents' || view === 'telemetry') return navigate('fleet', 'activity');
+                                if (view === 'policy' || view === 'config') return navigate('config');
+                                if (view === 'report') return navigate('reports', 'reports');
+                                navigate(view);
+                            }}
+                        />
                     </div>
                 )}
             </div>

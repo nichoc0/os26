@@ -14,8 +14,9 @@
  * enumerated here.
  */
 import { useEffect, useState } from 'react';
-import { Microphone, Lightning, ArrowSquareOut, CheckCircle, XCircle, Warning, CircleNotch } from '@phosphor-icons/react';
+import { Microphone, Lightning, ArrowSquareOut, CheckCircle, XCircle, Warning, CircleNotch, Trash, ChatText, X, Spinner } from '@phosphor-icons/react';
 import { useVoiceToken } from '../../data/useVoiceToken';
+import { usePersona } from '../../store/personaStore';
 
 const API_BASE =
   import.meta.env.VITE_API_URL ||
@@ -24,9 +25,16 @@ const API_BASE =
 const GATEWAY = (import.meta.env.VITE_VOICE_GATEWAY_URL || 'https://voice-demo.pistonsolutions.ai').replace(/\/+$/, '');
 const LISTEN_GATEWAY = (import.meta.env.VITE_LISTEN_GATEWAY_URL || GATEWAY).replace(/\/+$/, '');
 
-function relativeTime(epochSeconds) {
-  if (!epochSeconds) return '—';
+function relativeTime(epoch) {
+  if (!epoch) return '—';
+  // created_at arrives as epoch MILLISECONDS from the runs backend, but
+  // this helper math is in seconds. Treating ms as seconds made the diff
+  // hugely negative → clamped to 0 → every row stuck at "0s ago" forever
+  // (even 30s after the run). Normalize: anything that looks like ms
+  // (> ~1e12) gets divided down to seconds.
+  const epochSeconds = epoch > 1e12 ? epoch / 1000 : epoch;
   const seconds = Math.max(0, Math.floor(Date.now() / 1000 - epochSeconds));
+  if (seconds < 5) return 'just now';
   if (seconds < 60) return `${seconds}s ago`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
@@ -69,19 +77,86 @@ function VerdictPill({ verdict }) {
   );
 }
 
+// Persona-driven filter for live voice_runs entries. The bankai demo
+// org has historical internal test runs (medical:hallucination,
+// pharmacy:*) that aren't representative of a real banking engagement
+// — hide those specific plugin families. Anything NEW the operator
+// fires (banking:*, prompt-extraction, pii:direct, custom probes)
+// flows through. Use the operator-side Delete button for individual
+// noise items the broad filter misses.
+const BANKAI_HIDE_PLUGIN_PREFIXES = ['medical:', 'pharmacy:'];
+function filterLiveForPersona(runs, personaSlug) {
+  if (personaSlug !== 'demo-arabic-bank') return runs;
+  return runs.filter((r) => {
+    const pid = (r.plugin_id || '').toLowerCase();
+    return !BANKAI_HIDE_PLUGIN_PREFIXES.some((p) => pid.startsWith(p));
+  });
+}
+
+// localStorage key for the per-org deleted-row hide set. Stored as a
+// JSON array of run IDs that the operator clicked Delete on. The set
+// is scoped to the Clerk org so deletes don't leak across logins on
+// the same browser.
+function deletedIdsKey(orgId) {
+  return `bastion.voiceRuns.hidden.${orgId || 'anon'}`;
+}
+function loadDeletedIds(orgId) {
+  try {
+    const raw = localStorage.getItem(deletedIdsKey(orgId));
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch { return new Set(); }
+}
+function saveDeletedIds(orgId, set) {
+  try {
+    localStorage.setItem(deletedIdsKey(orgId), JSON.stringify(Array.from(set)));
+  } catch {}
+}
+
 export default function VoiceRunsPanel() {
   const { apiKey: bearer, status: bearerStatus, orgId } = useVoiceToken();
+  const persona = usePersona();
   const [runs, setRuns] = useState(null);
   const [error, setError] = useState(null);
   const [activeIds, setActiveIds] = useState(new Set());
+  // The run whose transcript modal is open (null = closed). Clicking a
+  // row opens it; the gateway serves the persisted transcript JSON.
+  const [openTranscript, setOpenTranscript] = useState(null);
+  // Operator-deleted run IDs. Persisted in localStorage so they survive
+  // page refresh (within the same browser). Backend DELETE endpoint is
+  // a follow-up; for now the hide is client-side.
+  const [deletedIds, setDeletedIds] = useState(() => new Set());
+  // Rehydrate on mount + when orgId changes (e.g. org switch in Clerk).
+  useEffect(() => { setDeletedIds(loadDeletedIds(orgId)); }, [orgId]);
+
+  const deleteRun = (runId) => {
+    setDeletedIds((prev) => {
+      const next = new Set(prev);
+      next.add(runId);
+      saveDeletedIds(orgId, next);
+      return next;
+    });
+  };
 
   // Poll voice_runs every 4 s. While probes are running their fields
   // (turn_count, termination_reason) update as the run progresses on
   // the gateway; refreshing keeps the table honest.
+  //
+  // No demo-row injection. Per the no-stubs-in-demo rule, this panel
+  // only shows REAL completed probes — each row maps to a real
+  // call_control_id with a real recording the WAV button can download.
+  // First-time empty state is fine; the wizard's "Spawn Probe" CTA
+  // points operators at the right next action.
   useEffect(() => {
     if (bearerStatus === 'idle' || bearerStatus === 'minting') return;
+    const composeRuns = (liveRuns) => {
+      const filteredLive = filterLiveForPersona(liveRuns, persona?.slug);
+      const sorted = [...filteredLive].sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+      return sorted;
+    };
     if (!bearer) {
-      setRuns([]);
+      setRuns(composeRuns([]));
       return;
     }
     let cancelled = false;
@@ -93,7 +168,8 @@ export default function VoiceRunsPanel() {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const data = await r.json();
         if (cancelled) return;
-        setRuns(Array.isArray(data?.voice_runs) ? data.voice_runs : []);
+        const live = Array.isArray(data?.voice_runs) ? data.voice_runs : [];
+        setRuns(composeRuns(live));
         setError(null);
       } catch (e) {
         if (!cancelled) setError(e.message);
@@ -102,7 +178,7 @@ export default function VoiceRunsPanel() {
     pollRuns();
     const id = setInterval(pollRuns, 4000);
     return () => { cancelled = true; clearInterval(id); };
-  }, [bearer, bearerStatus]);
+  }, [bearer, bearerStatus, persona?.slug]);
 
   // Poll /v1/calls/active to mark rows as LIVE. We don't org-filter
   // server-side (gateway doesn't yet), but we cross-reference locally:
@@ -138,7 +214,13 @@ export default function VoiceRunsPanel() {
     );
   }
 
-  if (runs.length === 0) {
+  // Apply operator's local hide-set. Deleted rows disappear from the
+  // panel; they reappear if the user clears localStorage. Backend
+  // deletion is a follow-up — for now the gateway's voice_runs row
+  // still exists, just hidden from this org's browser.
+  const visibleRuns = runs.filter((r) => !deletedIds.has(r.id));
+
+  if (visibleRuns.length === 0) {
     return (
       <div className="flex flex-col h-full">
         <div className="flex-1 flex items-center justify-center px-8">
@@ -172,7 +254,7 @@ export default function VoiceRunsPanel() {
             Voice Runs
           </h2>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-            {runs.length} run{runs.length === 1 ? '' : 's'} for your org · live probes appear with a LIVE pill
+            {visibleRuns.length} run{visibleRuns.length === 1 ? '' : 's'} for your org · live probes appear with a LIVE pill · click the trash icon to hide a row
           </p>
         </div>
         {orgId && (
@@ -187,24 +269,23 @@ export default function VoiceRunsPanel() {
       )}
 
       <div className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        <div className="grid grid-cols-[110px_1fr_110px_140px_70px_120px_90px_90px_90px] gap-3 px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-slate-400 bg-slate-50 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800">
+        <div className="grid grid-cols-[110px_1fr_110px_140px_90px_90px_90px_40px] gap-3 px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-slate-400 bg-slate-50 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800">
           <span>State</span>
           <span>Call · Plugin · Goal</span>
           <span>User</span>
           <span>Termination</span>
-          <span>Turns</span>
-          <span>Verdict</span>
           <span>Duration</span>
           <span>When</span>
           <span></span>
+          <span></span>
         </div>
         <div className="divide-y divide-slate-100 dark:divide-slate-800">
-          {runs.map((r) => {
-            const isLive = activeIds.has(r.call_control_id);
+          {visibleRuns.map((r) => {
+            const isLive = !r.__demo && activeIds.has(r.call_control_id);
             return (
               <div
                 key={r.id}
-                className="grid grid-cols-[110px_1fr_110px_140px_70px_120px_90px_90px_90px] gap-3 px-3 py-2.5 items-center text-[11px] hover:bg-slate-50 dark:hover:bg-slate-800/30"
+                className="grid grid-cols-[110px_1fr_110px_140px_90px_90px_90px_40px] gap-3 px-3 py-2.5 items-center text-[11px] hover:bg-slate-50 dark:hover:bg-slate-800/30"
               >
                 <span>
                   {isLive ? (
@@ -221,14 +302,23 @@ export default function VoiceRunsPanel() {
                     </span>
                   )}
                 </span>
-                <div className="min-w-0">
-                  <div className="truncate font-mono text-slate-800 dark:text-slate-200" title={r.call_control_id}>
+                <button
+                  type="button"
+                  onClick={() => setOpenTranscript(r)}
+                  className="min-w-0 text-left bg-transparent border-none cursor-pointer group"
+                  title="Open transcript"
+                >
+                  <div className="truncate font-mono text-slate-800 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 inline-flex items-center gap-1" title={r.call_control_id}>
                     {shortCallId(r.call_control_id)}
+                    <ChatText size={11} weight="bold" className="opacity-0 group-hover:opacity-100 text-blue-500 shrink-0" />
                   </div>
-                  <div className="truncate text-slate-500 dark:text-slate-400 text-[10px]" title={`${r.plugin_id || ''} · ${r.goal || ''}`}>
-                    {r.plugin_id || '—'} · {r.goal || ''}
+                  {/* Plugin id only in the row — full goal text is huge
+                      and bleeds the column. Goal lives in the title=
+                      tooltip so it's still recoverable on hover. */}
+                  <div className="truncate text-slate-500 dark:text-slate-400 text-[10px]" title={r.goal || ''}>
+                    {r.plugin_id || '—'}
                   </div>
-                </div>
+                </button>
                 <div
                   className="truncate font-mono text-slate-600 dark:text-slate-300 text-[10px]"
                   title={r.user_id || 'no user_id'}
@@ -238,10 +328,6 @@ export default function VoiceRunsPanel() {
                 <div className="truncate text-slate-600 dark:text-slate-300 text-[10px]" title={r.termination_reason || ''}>
                   {r.termination_reason || '—'}
                 </div>
-                <div className="tabular-nums text-slate-600 dark:text-slate-300">
-                  {r.turn_count ?? 0}/{r.max_turns ?? 0}
-                </div>
-                <VerdictPill verdict={r.grader_verdict} />
                 <div className="tabular-nums text-slate-500 dark:text-slate-400 text-[10px]">
                   {r.call_duration_ms ? `${Math.round(r.call_duration_ms / 1000)}s` : '—'}
                 </div>
@@ -257,30 +343,172 @@ export default function VoiceRunsPanel() {
                   >
                     Listen <ArrowSquareOut size={10} weight="bold" />
                   </a>
-                ) : bearer ? (
-                  // Recording download. Bearer travels in query because
-                  // a regular <a download> can't set an Authorization
-                  // header; the gateway accepts ?bearer= equivalent to
-                  // Authorization. Stereo WAV: left = target, right =
-                  // Bastion. Open in any audio editor to grade offline.
+                ) : (
+                  // Real-call WAV download. Every row is a real probe
+                  // (no demo-row stub path) so the link always points
+                  // at the gateway's `/v1/recordings/<ccid>` endpoint.
+                  // The recorder is wired for AVA + WS-target routes;
+                  // Telnyx originate (v3:*) is still pending and those
+                  // rows will 404 until that wiring lands.
                   <a
-                    href={`${LISTEN_GATEWAY}/v1/recordings/${encodeURIComponent(r.call_control_id)}?bearer=${encodeURIComponent(bearer)}`}
-                    download={`bastion-${r.call_control_id.slice(0, 16)}.wav`}
+                    href={`${LISTEN_GATEWAY}/v1/recordings/${encodeURIComponent(r.call_control_id)}${bearer ? `?bearer=${encodeURIComponent(bearer)}` : ''}`}
+                    download={`bastion-${(r.call_control_id || r.id).slice(0, 16)}.wav`}
                     className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400"
-                    title="Download stereo WAV (L=target, R=Bastion)"
+                    title="Download stereo WAV (L = inbound, R = outbound)"
                   >
                     WAV <ArrowSquareOut size={10} weight="bold" />
                   </a>
-                ) : (
-                  <span className="text-slate-400">
-                    <ArrowSquareOut size={11} weight="bold" className="opacity-30" />
-                  </span>
                 )}
+                {/* Delete button — local-hide (localStorage-backed)
+                    until backend DELETE lands. One click, no confirm
+                    so the demo cadence isn't interrupted. */}
+                <button
+                  onClick={() => deleteRun(r.id)}
+                  className="inline-flex items-center justify-center w-6 h-6 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-none transition-colors cursor-pointer border-none bg-transparent"
+                  title="Hide this run (local to this browser)"
+                  aria-label="Hide run"
+                >
+                  <Trash size={11} weight="bold" />
+                </button>
               </div>
             );
           })}
         </div>
       </div>
+
+      {openTranscript && (
+        <TranscriptModal
+          run={openTranscript}
+          bearer={bearer}
+          onClose={() => setOpenTranscript(null)}
+        />
+      )}
     </div>
   );
+}
+
+// Past-run transcript viewer. Fetches the gateway's persisted transcript
+// JSON (written at call-end) and renders it turn-grouped — consecutive
+// finals from the same speaker merge into one block, partials are
+// dropped, exact/growing-final duplicates collapsed. Mirrors the live
+// /listen widget's rendering so a stopped run reads the same as it did
+// live. WAV (audio) stays a separate download on the row.
+function TranscriptModal({ run, bearer, onClose }) {
+  const [state, setState] = useState('loading'); // loading | ready | empty | error
+  const [turns, setTurns] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const ccid = run?.call_control_id;
+    if (!ccid) { setState('empty'); return; }
+    const url = `${LISTEN_GATEWAY}/v1/transcripts/${encodeURIComponent(ccid)}${bearer ? `?bearer=${encodeURIComponent(bearer)}` : ''}`;
+    (async () => {
+      try {
+        const r = await fetch(url, { mode: 'cors' });
+        if (cancelled) return;
+        if (r.status === 404) { setState('empty'); return; }
+        if (!r.ok) { setState('error'); return; }
+        const frames = await r.json();
+        if (cancelled) return;
+        setTurns(groupTranscript(Array.isArray(frames) ? frames : []));
+        setState(frames && frames.length ? 'ready' : 'empty');
+      } catch {
+        if (!cancelled) setState('error');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [run, bearer]);
+
+  // Direction → speaker label. The persisted transcript is the TARGET
+  // call's view (what the live widget showed): Outbound = the target
+  // agent (Sera), Inbound = the Bastion attacker.
+  const labelFor = (dir) => (String(dir).toLowerCase() === 'inbound' ? 'Bastion (attacker)' : 'Target');
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-2xl max-h-[80vh] flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="shrink-0 px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
+          <ChatText size={16} weight="duotone" className="text-blue-500" />
+          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Transcript</h3>
+          <span className="text-[10px] font-mono text-slate-400 truncate">{shortCallId(run.call_control_id)}</span>
+          <button onClick={onClose} className="ml-auto p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 bg-transparent border-none cursor-pointer" aria-label="Close">
+            <X size={16} weight="bold" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {state === 'loading' && (
+            <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 py-8 justify-center">
+              <Spinner size={16} className="animate-spin" /> Loading transcript…
+            </div>
+          )}
+          {state === 'error' && (
+            <div className="text-sm text-amber-700 dark:text-amber-400 py-8 text-center">Couldn't load this transcript.</div>
+          )}
+          {state === 'empty' && (
+            <div className="text-sm text-slate-500 dark:text-slate-400 py-8 text-center">
+              No saved transcript for this run.<br />
+              <span className="text-[11px]">Transcripts are captured for probes run after this feature shipped; older runs won't have one.</span>
+            </div>
+          )}
+          {state === 'ready' && turns.map((t, i) => {
+            const inbound = String(t.dir).toLowerCase() === 'inbound';
+            return (
+              <div key={i} className={`flex flex-col ${inbound ? 'items-start' : 'items-end'}`}>
+                <div className={`text-[9px] font-bold uppercase tracking-widest mb-0.5 ${inbound ? 'text-rose-600 dark:text-rose-400' : 'text-blue-600 dark:text-blue-400'}`}>
+                  {labelFor(t.dir)}
+                </div>
+                <div className={`max-w-[85%] px-3 py-2 text-[12px] leading-snug whitespace-pre-wrap ${inbound ? 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200' : 'bg-blue-50 dark:bg-blue-950/40 text-slate-800 dark:text-slate-100'}`}>
+                  {t.text}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="shrink-0 px-4 py-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-[10px] text-slate-400">
+          <span>{run.plugin_id || ''}</span>
+          {run.call_control_id && (
+            <a
+              href={`${LISTEN_GATEWAY}/v1/recordings/${encodeURIComponent(run.call_control_id)}${bearer ? `?bearer=${encodeURIComponent(bearer)}` : ''}`}
+              download={`bastion-${(run.call_control_id || run.id).slice(0, 16)}.wav`}
+              className="inline-flex items-center gap-1 font-semibold text-slate-500 hover:text-blue-600 dark:hover:text-blue-400"
+              title="Download audio (stereo WAV)"
+            >
+              WAV (audio) <ArrowSquareOut size={9} weight="bold" />
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Turn-group a flat list of transcript frames the same way the live
+// /listen widget does: keep only finals, merge consecutive same-
+// direction frames into one block, collapse exact/growing-final dupes.
+function groupTranscript(frames) {
+  const turns = [];
+  for (const f of frames) {
+    if (f.is_final === false) continue; // drop partials
+    const dir = f.direction || 'outbound';
+    const clean = (f.text || '').trim();
+    if (!clean) continue;
+    const cur = turns[turns.length - 1];
+    if (cur && String(cur.dir).toLowerCase() === String(dir).toLowerCase()) {
+      const last = cur.segments[cur.segments.length - 1];
+      if (last && (last === clean || last.includes(clean))) {
+        // duplicate / shrinking re-emit — skip
+      } else if (last && clean.includes(last)) {
+        cur.segments[cur.segments.length - 1] = clean; // growing final
+      } else {
+        cur.segments.push(clean);
+      }
+      cur.text = cur.segments.join(' ');
+    } else {
+      turns.push({ dir, segments: [clean], text: clean });
+    }
+  }
+  return turns;
 }

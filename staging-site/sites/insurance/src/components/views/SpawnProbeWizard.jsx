@@ -34,12 +34,39 @@ const STEPS = [
     { id: 'spawn',     label: 'Spawn & monitor' },
 ];
 
+// Persist the in-flight run + resume point across modal close / tab
+// reload (Yousuf 2026-05-27 feedback). Fixed tab-scoped sessionStorage
+// key — not keyed by orgId, which resolves async after mint and isn't
+// available at lazy-useState time. See compliance wizard for the full
+// rationale; this site mirrors that behaviour.
+const PERSIST_KEY = 'bastion.spawnWizard.v1';
+
+function loadPersistedWizard() {
+    if (typeof window === 'undefined') return null;
+    try {
+        const raw = window.sessionStorage.getItem(PERSIST_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch {
+        return null;
+    }
+}
+
+function savePersistedWizard(blob) {
+    if (typeof window === 'undefined') return;
+    try {
+        if (blob == null) window.sessionStorage.removeItem(PERSIST_KEY);
+        else window.sessionStorage.setItem(PERSIST_KEY, JSON.stringify(blob));
+    } catch {
+        /* quota / disabled — non-fatal */
+    }
+}
+
 export default function SpawnProbeWizard({ setCurrentView }) {
-    const [step, setStep] = useState(0);
-    const [verticalId, setVerticalId] = useState(null);
-    const [selectedPlugins, setSelectedPlugins] = useState([]);
-    const [selectedStrategies, setSelectedStrategies] = useState(['basic']);
-    const [config, setConfig] = useState({
+    // Default to a FRESH wizard; only resume a persisted run if it's
+    // confirmed still LIVE on the gateway (resume-check effect below).
+    // Nick 2026-05-28: a done/disconnected run must bring you back to
+    // the wizard, not drop you into a stale "calls live" view.
+    const DEFAULT_CONFIG = {
         targetDID: '',
         attackerCount: 3,
         maxTurns: 6,
@@ -51,7 +78,13 @@ export default function SpawnProbeWizard({ setCurrentView }) {
         // config. See voice-orchestrator/src/providers/elevenlabs.rs:
         //   TARGET_VOICE_ID   = "052jzHJceQiZr7ltnY0C" (Sera)
         //   ATTACKER_VOICE_ID = "XA2bIQ92TabjGbpO2xRr" (Bastion)
-    });
+    };
+
+    const [step, setStep] = useState(0);
+    const [verticalId, setVerticalId] = useState(null);
+    const [selectedPlugins, setSelectedPlugins] = useState([]);
+    const [selectedStrategies, setSelectedStrategies] = useState(['basic']);
+    const [config, setConfig] = useState(DEFAULT_CONFIG);
     const [selectedAttackerId, setSelectedAttackerId] = useState(null);
     const [spawnState, setSpawnState] = useState({ status: 'idle' });
 
@@ -61,6 +94,67 @@ export default function SpawnProbeWizard({ setCurrentView }) {
     // Cached per (user, org) in sessionStorage by useVoiceToken so we
     // don't mint a fresh key on every wizard render.
     const { apiKey: voiceToken, orgId: voiceOrgId, status: voiceTokenStatus, mint: refreshVoiceToken } = useVoiceToken();
+
+    // Snapshot run + resume point on change for modal-close / reload
+    // rehydration. Skip the empty default (idle + step 0).
+    useEffect(() => {
+        if (spawnState.status === 'idle' && step === 0) {
+            savePersistedWizard(null);
+            return;
+        }
+        savePersistedWizard({
+            step,
+            verticalId,
+            selectedPlugins,
+            selectedStrategies,
+            config,
+            selectedAttackerId,
+            spawnState,
+        });
+    }, [step, verticalId, selectedPlugins, selectedStrategies, config, selectedAttackerId, spawnState]);
+
+    // "Start new probe" — clear persisted run and reset to step 0.
+    const resetWizard = () => {
+        savePersistedWizard(null);
+        setSpawnState({ status: 'idle' });
+        setSelectedAttackerId(null);
+        setStep(0);
+    };
+
+    // Resume-on-reopen only for a still-live run. On mount, check the
+    // persisted run's call_control_ids against the gateway's active list;
+    // resume to the spawn step if live, else discard and stay fresh.
+    useEffect(() => {
+        const p = loadPersistedWizard();
+        const attackers = p?.spawnState?.attackers;
+        if (!p || !Array.isArray(attackers) || attackers.length === 0) {
+            savePersistedWizard(null);
+            return;
+        }
+        let cancelled = false;
+        (async () => {
+            try {
+                const ccids = attackers.map((a) => a.call_control_id).filter(Boolean);
+                if (ccids.length === 0) { savePersistedWizard(null); return; }
+                const r = await fetch(`${GATEWAY}/v1/calls/active`, { mode: 'cors' });
+                const j = r.ok ? await r.json() : { calls: [] };
+                if (cancelled) return;
+                const active = new Set((j.calls || []).map((c) => c.call_control_id));
+                if (!ccids.some((id) => active.has(id))) { savePersistedWizard(null); return; }
+                setVerticalId(p.verticalId ?? null);
+                setSelectedPlugins(p.selectedPlugins ?? []);
+                setSelectedStrategies(p.selectedStrategies ?? ['basic']);
+                setConfig(p.config ?? DEFAULT_CONFIG);
+                setSelectedAttackerId(p.selectedAttackerId ?? null);
+                setSpawnState(p.spawnState);
+                setStep(STEPS.length - 1);
+            } catch {
+                if (!cancelled) savePersistedWizard(null);
+            }
+        })();
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const vertical = verticalId ? getVertical(verticalId) : null;
 
@@ -110,14 +204,23 @@ export default function SpawnProbeWizard({ setCurrentView }) {
         // ("Dosage calculation") instead of the raw plugin id
         // ("pharmacy:dosage-calculation") — buyer-facing copy, no IDs.
         const labelByPluginId = new Map((vertical?.plugins || []).map((p) => [p.id, p.label]));
+        const descByPluginId = new Map((vertical?.plugins || []).map((p) => [p.id, p.description]));
         const humanLabel = (id) => labelByPluginId.get(id) || id;
+        const strategyLabel = (id) => VOICE_TRANSLATABLE_STRATEGIES.find((s) => s.id === id)?.label || id;
         for (let a = 0; a < config.attackerCount; a += 1) {
             for (let p = 0; p < plugins.length; p += 1) {
+                const sid = strategies[(a + p) % strategies.length];
                 plan.push({
                     attacker_index: a,
                     plugin_id: plugins[p],
                     plugin_label: humanLabel(plugins[p]),
-                    strategy_id: strategies[(a + p) % strategies.length],
+                    // Stage/goal header metadata (Option B — taxonomy
+                    // labels only; this site has no buildProbeGoal/
+                    // buildProbeRule, so no goal/qa_rule fields).
+                    plugin_description: descByPluginId.get(plugins[p]) || '',
+                    strategy_id: sid,
+                    strategy_label: strategyLabel(sid),
+                    vertical_label: vertical?.label || vertical?.id || '',
                 });
             }
         }
@@ -249,6 +352,7 @@ export default function SpawnProbeWizard({ setCurrentView }) {
                                 selectedStrategies={selectedStrategies}
                                 state={spawnState}
                                 onSpawn={spawn}
+                                onReset={resetWizard}
                                 onViewReport={() => setCurrentView('reports')}
                                 selectedAttackerId={selectedAttackerId}
                                 onSelectAttacker={setSelectedAttackerId}
@@ -503,7 +607,7 @@ function ConfigureStep({ vertical, config, setConfig, selectedPlugins, selectedS
     );
 }
 
-function SpawnStep({ vertical, config, selectedPlugins, selectedStrategies, state, onSpawn, onViewReport, selectedAttackerId, onSelectAttacker }) {
+function SpawnStep({ vertical, config, selectedPlugins, selectedStrategies, state, onSpawn, onReset, onViewReport, selectedAttackerId, onSelectAttacker }) {
     // Auto-select the first live attacker so the transcript pane has
     // something to show as soon as a call connects, without the user
     // having to click.
@@ -574,22 +678,56 @@ function SpawnStep({ vertical, config, selectedPlugins, selectedStrategies, stat
             />
 
             {state.status === 'running' && (
-                <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 p-4 flex items-center justify-between">
+                <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 p-4 flex items-center justify-between gap-4">
                     <div>
                         <div className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">Calls dispatched · run is in progress</div>
                         <div className="text-[11px] text-emerald-800 dark:text-emerald-300">
-                            Calls stay live on the gateway. When grading completes, a new Posture Report appears in the Reports section.
+                            Calls stay live on the gateway. When grading completes, a new Posture Report appears in the Reports section. This run stays here if you close and reopen.
                         </div>
                     </div>
-                    <button
-                        onClick={onViewReport}
-                        className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest px-5 py-2.5 border border-blue-500 text-white bg-blue-500 hover:bg-blue-600 cursor-pointer"
-                    >
-                        <FileText size={12} weight="bold" />
-                        View Reports
-                        <ArrowRight size={12} weight="bold" />
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                        {onReset && (
+                            <button
+                                onClick={onReset}
+                                className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest px-4 py-2.5 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer bg-transparent transition-colors"
+                            >
+                                Start new probe
+                            </button>
+                        )}
+                        <button
+                            onClick={onViewReport}
+                            className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest px-5 py-2.5 border border-blue-500 text-white bg-blue-500 hover:bg-blue-600 cursor-pointer"
+                        >
+                            <FileText size={12} weight="bold" />
+                            View Reports
+                            <ArrowRight size={12} weight="bold" />
+                        </button>
+                    </div>
                 </div>
+            )}
+        </div>
+    );
+}
+
+// Stage + goal context above the transcript (Yousuf 2026-05-27). Only
+// the Probing stage exists today, so "Stage 1 of 1 · Probing" is
+// honest. Option B on this site: taxonomy labels only (no goal/qa_rule
+// — no builders here).
+function StageGoalHeader({ selected }) {
+    if (!selected) return null;
+    const subtitle = [selected.vertical_label, selected.plugin_label, selected.strategy_label]
+        .filter(Boolean)
+        .join(' · ');
+    return (
+        <div className="border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 px-3 py-2 mb-2">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300">
+                Stage 1 of 1 · Probing
+            </div>
+            {subtitle && (
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{subtitle}</div>
+            )}
+            {selected.plugin_description && (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">{selected.plugin_description}</p>
             )}
         </div>
     );
@@ -631,6 +769,7 @@ function AttackerListWithTranscript({ attackers, selectedId, onSelect }) {
                         </a>
                     )}
                 </div>
+                <StageGoalHeader selected={selected} />
                 <div className="border border-slate-200 dark:border-slate-800 bg-black overflow-hidden" style={{ height: '480px' }}>
                     {selected?.call_control_id ? (
                         <LiveTranscriptFrame

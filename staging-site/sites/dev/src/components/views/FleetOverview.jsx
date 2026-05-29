@@ -11,7 +11,6 @@ import { usePersona } from '../../store/personaStore';
 import { useIsTenant } from '../../data/useIsTenant';
 import { fleetReportFixture } from '../../data/fleetReportFixture';
 import { useLiveRiskPulse } from '../../data/useLiveRiskPulse';
-import { GetStartedPanel } from './GetStartedPanel';
 
 function riskColor(score) {
   if (score >= 0.7) return 'bg-blue-900';
@@ -49,7 +48,7 @@ function parseJson(str) {
   try { return JSON.parse(str); } catch { return []; }
 }
 
-export function FleetOverview({ data, setCurrentView, onInspect, reportData }) {
+export function FleetOverview({ data, setCurrentView, navigate, onInspect, reportData }) {
   const agents = data.agents || [];
   const timeline = data.timeline || [];
   const agentMeta = data.agentMeta || {};
@@ -57,6 +56,55 @@ export function FleetOverview({ data, setCurrentView, onInspect, reportData }) {
   const isDev = useIsDev();
   const persona = usePersona();
   const isTenant = useIsTenant();
+
+  // Navigation shim. Many CTAs on this page used to call
+  // setCurrentView('risk' | 'telemetry' | 'agents' | 'policy') — those
+  // view names don't exist at the App-level switch anymore, so the
+  // calls silently no-op'd (Nicho 2026-05-27: "alot of hrefs in
+  // overview/main dashboard are broken and dont point anywhere"). Map
+  // each legacy name onto the real (view, tab) tuple the App switch
+  // resolves. The "risk" target lands on the Posture Report's Risk tab
+  // where the Risk widget lives.
+  const LEGACY_VIEW_MAP = {
+    risk:      ['reports', 'risk'],
+    report:    ['reports', 'reports'],
+    reports:   ['reports', 'reports'],
+    telemetry: ['fleet',   'activity'],
+    agents:    ['fleet',   'activity'],
+    fleet:     ['fleet',   'activity'],
+    policy:    ['config',  null],
+    config:    ['config',  null],
+    overview:  ['overview', null],
+  };
+  const goto = (view, tab) => {
+    if (navigate) return navigate(view, tab);
+    setCurrentView?.(view);
+  };
+  // Set or clear the ?agent=<id> URL param that AgentDirectoryWithDetail
+  // reads on mount. "View All Agents" needs to CLEAR it so the user
+  // lands on the directory grid instead of a stale focused agent;
+  // agent-card clicks need to SET it so the operator drills straight
+  // into that agent's focused view.
+  const writeAgentUrl = (agentId) => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (agentId) url.searchParams.set('agent', agentId);
+    else url.searchParams.delete('agent');
+    // Clear any stale subtab param the prior nested-nav set.
+    url.searchParams.delete('subtab');
+    window.history.replaceState({}, '', url.toString());
+  };
+  const gotoAllAgents = () => { writeAgentUrl(null); goto('fleet', 'activity'); };
+  const gotoAgent = (agentId) => { writeAgentUrl(agentId); goto('fleet', 'activity'); };
+  // Wrapper used as the `setCurrentView` prop for children that were
+  // built against the old single-arg API (ScoreDecomposition,
+  // ExecutiveMetricsBar). Translates the legacy name to the real
+  // (view, tab) tuple before calling navigate.
+  const setCurrentViewLegacy = (legacyView) => {
+    const mapped = LEGACY_VIEW_MAP[legacyView];
+    if (mapped) goto(mapped[0], mapped[1]);
+    else goto(legacyView);
+  };
 
   // Persona-themed fixture (same one the Agent Risk Assessment view
   // uses) + the shared live-pulse hook. The two surfaces share both,
@@ -115,18 +163,6 @@ export function FleetOverview({ data, setCurrentView, onInspect, reportData }) {
     setDismissedAlerts(prev => new Set([...prev, id]));
   };
 
-  // First-run experience: signed-in org with NO fleet telemetry (no
-  // agents being observed, no ingested events) gets routed to the
-  // Test Suite via the get-started CTA instead of empty charts.
-  // Test Suite assessment runs do NOT count — they live in their
-  // own section. The Overview is for continuous fleet posture; if
-  // there's no fleet, no posture to show.
-  // Placed AFTER all hooks have been invoked (React #300 otherwise).
-  const hasFleetData = (data.agents?.length || 0) > 0 || (data.events?.length || 0) > 0;
-  if (isTenant && !hasFleetData) {
-    return <GetStartedPanel setCurrentView={setCurrentView} />;
-  }
-
   return (
     <div className="w-full max-w-[1600px] mx-auto space-y-6 pb-12">
       {/* Mode banner — passive observation is the baseline */}
@@ -138,7 +174,7 @@ export function FleetOverview({ data, setCurrentView, onInspect, reportData }) {
       </div>
 
       {/* Executive Metrics */}
-      <ExecutiveMetricsBar overview={data.overview} agents={agents} setCurrentView={setCurrentView} />
+      <ExecutiveMetricsBar overview={data.overview} agents={agents} setCurrentView={setCurrentViewLegacy} />
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -150,7 +186,7 @@ export function FleetOverview({ data, setCurrentView, onInspect, reportData }) {
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">{isDev ? 'Fleet posture improving since Bastion deployment' : 'Fleet risk decline since Bastion deployment'}</p>
             </div>
             {!isDev && (
-              <button onClick={() => setCurrentView('risk')} className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold cursor-pointer bg-transparent border-none">Risk Details &rarr;</button>
+              <button onClick={() => goto('reports', 'risk')} className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold cursor-pointer bg-transparent border-none">Risk widget &rarr;</button>
             )}
           </div>
           <div className="h-[280px]">
@@ -188,7 +224,7 @@ export function FleetOverview({ data, setCurrentView, onInspect, reportData }) {
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-none p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-widest">Risk Events (14d)</h3>
-            <button onClick={() => setCurrentView('risk')} className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold cursor-pointer bg-transparent border-none">Risk Details &rarr;</button>
+            <button onClick={() => goto('reports', 'risk')} className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold cursor-pointer bg-transparent border-none">Risk widget &rarr;</button>
           </div>
           <div className="h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -221,7 +257,8 @@ export function FleetOverview({ data, setCurrentView, onInspect, reportData }) {
           the at-a-glance posture; the breakdown explains what's driving it. */}
       <ScoreDecomposition
         reportData={reportData}
-        setCurrentView={setCurrentView}
+        setCurrentView={setCurrentViewLegacy}
+        persona={persona}
         title="Risk Score — Component Breakdown"
         subtitle="What's driving your fleet posture right now. Click any row to inspect the underlying events."
       />
@@ -235,7 +272,7 @@ export function FleetOverview({ data, setCurrentView, onInspect, reportData }) {
               <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-widest">Action Required</h3>
               <span className="text-[10px] font-mono text-slate-500">{alertEvents.length} pending</span>
             </div>
-            <button onClick={() => setCurrentView('telemetry')} className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold cursor-pointer bg-transparent border-none">View All Events &rarr;</button>
+            <button onClick={() => goto('fleet', 'activity')} className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold cursor-pointer bg-transparent border-none">View All Events &rarr;</button>
           </div>
           <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
             {alertEvents.map((event) => {
@@ -290,7 +327,7 @@ export function FleetOverview({ data, setCurrentView, onInspect, reportData }) {
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Agent Fleet</h2>
-          <button onClick={() => setCurrentView('agents')} className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold cursor-pointer bg-transparent border-none">View All Agents &rarr;</button>
+          <button onClick={gotoAllAgents} className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold cursor-pointer bg-transparent border-none">View All Agents &rarr;</button>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {sortedAgents.map((agent) => {
@@ -302,7 +339,7 @@ export function FleetOverview({ data, setCurrentView, onInspect, reportData }) {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
-                onClick={() => setCurrentView('agents')}
+                onClick={() => gotoAgent(agent.id)}
                 className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-none p-5 hover:border-slate-300 dark:hover:border-slate-700 transition-colors cursor-pointer"
               >
                 {/* Header: name + status */}
@@ -375,10 +412,10 @@ export function FleetOverview({ data, setCurrentView, onInspect, reportData }) {
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-none p-5">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-widest">Posture Report</h3>
-              <div className="flex items-center gap-4">
-                <button onClick={() => setCurrentView('reports')} className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold cursor-pointer bg-transparent border-none">Risk Details &rarr;</button>
-                <button onClick={() => setCurrentView('reports')} className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold cursor-pointer bg-transparent border-none">Full Report &rarr;</button>
-              </div>
+              {/* One CTA. The previous pair ("Risk Details" + "Full Report")
+                  both landed on the same Reports view (Yousuf 2026-05-27);
+                  collapsed per the lean-buttons rule. */}
+              <button onClick={() => goto('reports', 'reports')} className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold cursor-pointer bg-transparent border-none">Open posture report &rarr;</button>
             </div>
             <div className="flex items-center gap-6">
               <div className="flex items-center gap-3">

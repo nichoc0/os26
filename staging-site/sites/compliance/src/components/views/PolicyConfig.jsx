@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Gear, ShieldCheck, Wrench, Plus, Prohibit, CheckCircle, UploadSimple, FileText, Spinner, X, ArrowRight, Clock, Graph } from '@phosphor-icons/react';
 import { AgentBadge } from '../ui/AgentBadge';
 import { useSessionStore } from '../../store/sessionStore';
+import { usePersona } from '../../store/personaStore';
 
 // localStorage-backed history of uploaded policies. Survives page navigation
 // (KG view → back) so the user has visible proof of past uploads, not just an
@@ -67,7 +68,23 @@ const API_BASE = (() => {
   return import.meta.env.BASE_URL !== '/' ? import.meta.env.BASE_URL.replace(/\/$/, '') : '';
 })();
 
-function PolicyUploadCard({ setCurrentView }) {
+// Per-persona sample upload entries seeded on first mount when the
+// user's history is empty. Each entry points at a `policy-upload:<file>`
+// source tag that has matching triples in the persona's kg-triples.json
+// so clicking "View" opens a non-empty Knowledge Graph instead of an
+// empty filter. Add new personas here as their KG fixtures land.
+const SAMPLE_POLICY_BY_PERSONA = {
+  'demo-arabic-bank': {
+    source: 'policy-upload:scope_v1.md',
+    filename: 'scope_v1.md',
+    policyId: 'POL-BANK-2026-001',
+    tripleCount: 18,
+  },
+};
+
+function PolicyUploadCard({ setCurrentView, navigate }) {
+  const persona = usePersona();
+  const personaSlug = persona?.slug || null;
   const [stage, setStage] = useState('idle');
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -78,6 +95,21 @@ function PolicyUploadCard({ setCurrentView }) {
   const refreshKg = useSessionStore((s) => s.fetchKg);
 
   useEffect(() => { setHistory(loadHistory()); }, []);
+
+  // Seed the persona's sample entry on first mount (or if the user
+  // cleared all uploads). Skip if a sample already exists. This makes
+  // the demo flow "scroll to Previously uploaded → click View → see
+  // KG filtered to the sample policy" work without requiring the user
+  // to upload a file first.
+  useEffect(() => {
+    if (!personaSlug) return;
+    const sample = SAMPLE_POLICY_BY_PERSONA[personaSlug];
+    if (!sample) return;
+    const current = loadHistory();
+    if (current.some((h) => h.source === sample.source)) return;
+    const next = appendHistory({ ...sample, uploadedAt: Date.now() });
+    setHistory(next);
+  }, [personaSlug]);
 
   const handleFiles = async (files) => {
     if (!files || files.length === 0) return;
@@ -278,11 +310,27 @@ function PolicyUploadCard({ setCurrentView }) {
                       )}
                     </div>
                   </div>
-                  {setCurrentView && (
+                  {(navigate || setCurrentView) && (
                     <button
-                      onClick={() => setCurrentView('vault')}
+                      onClick={() => {
+                        // Write the policy's source tag into the URL so
+                        // KnowledgeGraphView's mount effect can seed its
+                        // source filter and the user lands on a KG that's
+                        // already filtered to nodes derived from THIS
+                        // uploaded policy. Previous behaviour
+                        // (`setCurrentView('vault')`) silently fell
+                        // through to the default Overview view because
+                        // 'vault' isn't a real App-level view name.
+                        if (typeof window !== 'undefined' && entry.source) {
+                          const url = new URL(window.location.href);
+                          url.searchParams.set('kgSource', entry.source);
+                          window.history.replaceState({}, '', url.toString());
+                        }
+                        if (navigate) navigate('fleet', 'graph');
+                        else setCurrentView?.('fleet');
+                      }}
                       className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer bg-transparent rounded-none transition-colors flex items-center gap-1"
-                      title="Open in Knowledge Graph"
+                      title="Open in Knowledge Graph — pre-filtered to triples from this policy."
                     >
                       <Graph size={11} weight="bold" />
                       View
@@ -396,7 +444,7 @@ function StatusBadge({ status }) {
   );
 }
 
-export function PolicyConfig({ data, setCurrentView }) {
+export function PolicyConfig({ data, setCurrentView, navigate }) {
   const [formAgent, setFormAgent] = useState('*');
   const [formTool, setFormTool] = useState('');
   const [formAction, setFormAction] = useState('block');
@@ -426,7 +474,7 @@ export function PolicyConfig({ data, setCurrentView }) {
         </div>
       </div>
 
-      <PolicyUploadCard setCurrentView={setCurrentView} />
+      <PolicyUploadCard setCurrentView={setCurrentView} navigate={navigate} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Active Policies */}

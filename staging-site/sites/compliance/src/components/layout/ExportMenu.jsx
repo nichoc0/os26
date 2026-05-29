@@ -1,26 +1,25 @@
 import { useState, useRef, useEffect } from 'react';
-import { CaretDown, FilePdf, FileDoc, FileXls, X } from '@phosphor-icons/react';
+import { CaretDown, FileDoc, FileXls, X } from '@phosphor-icons/react';
+import { usePersona } from '../../store/personaStore';
 
 // Export menu surfaced from the Bastion wordmark in the top-left
 // sidebar. Provides one-click export of the two customer-shippable
 // documents the dashboard produces:
 //
-//   1. Risk Sheet (the underwriting report). Exports as XLSX (the
-//      pre-built fixture under /public, rendered for HeySadie pilot) or
-//      PDF (browser-print of the live ReportView).
+//   1. Risk Sheet (the underwriting report). Exports as XLSX — the
+//      pre-built fixture under /public, rendered for HeySadie pilot.
 //
 //   2. Posture Report. Exports as DOCX (HTML-in-Word-wrapper, which
-//      Microsoft Word and Google Docs both open cleanly) or PDF
-//      (browser-print of the live PostureReportView).
+//      Microsoft Word and Google Docs both open cleanly).
 //
-// Both PDF paths route through window.print(); the user picks
-// "Save as PDF" in their browser's print dialog. The XLSX path
-// streams the pre-built file. The DOCX path serialises the report
-// DOM to a Word-compatible HTML document.
+// Print / save-as-PDF was previously offered for the Risk Sheet but
+// removed per buyer feedback (Yousuf, 2026-05-27): the canonical
+// export is the .xlsx; the platform itself is the source of truth.
 
 export default function ExportMenu({ setCurrentView }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const persona = usePersona();
 
   useEffect(() => {
     if (!open) return undefined;
@@ -33,18 +32,18 @@ export default function ExportMenu({ setCurrentView }) {
 
   const downloadXlsx = () => {
     setOpen(false);
+    // Persona-aware download. Each persona has its own workbook built by
+    // scripts/build-underwriting-xlsx.js (Demo Pharmacy = pharmacy data;
+    // Demo Arabic Bank = banking data with CBB Vol 2 + AAOIFI GS mappings
+    // and the 4 real GFH-recon findings). Fall back to the pharmacy
+    // workbook for any unconfigured persona.
+    const slug = persona?.slug || 'maple-pharmacy';
     const a = document.createElement('a');
-    a.href = `${import.meta.env.BASE_URL}underwriting-latest.xlsx`;
-    a.download = 'risk-sheet.xlsx';
+    a.href = `${import.meta.env.BASE_URL}underwriting-${slug}.xlsx`;
+    a.download = `risk-sheet-${slug}.xlsx`;
     document.body.appendChild(a);
     a.click();
     a.remove();
-  };
-
-  const printRiskSheetPdf = () => {
-    setOpen(false);
-    setCurrentView && setCurrentView('report');
-    setTimeout(() => window.print(), 250);
   };
 
   const downloadPostureReportDocx = () => {
@@ -94,7 +93,6 @@ export default function ExportMenu({ setCurrentView }) {
 
           <ExportGroup label="Risk sheet">
             <ExportItem icon={FileXls} label="Download .xlsx" onClick={downloadXlsx} />
-            <ExportItem icon={FilePdf} label="Print or save as PDF" onClick={printRiskSheetPdf} />
           </ExportGroup>
 
           <ExportGroup label="Posture report">

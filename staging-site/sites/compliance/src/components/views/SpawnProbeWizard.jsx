@@ -86,13 +86,55 @@ const LANGUAGES = [
     { id: 'Spanish',           label: 'Spanish',                       note: 'Attacker speaks Spanish. Deepgram-multi transcribes it.' },
 ];
 
+// Persist the in-flight run + resume point across modal close / tab
+// reload (Yousuf 2026-05-27: "when you press stop the probe test
+// disappears … maybe the transcripts should still stay"). The wizard
+// lives in a modal; closing it unmounts this component and used to
+// discard everything. We snapshot to sessionStorage so reopening (or a
+// same-tab reload) rehydrates the attacker list, selected attacker, and
+// stage/goal metadata.
+//
+// FIXED tab-scoped key (NOT keyed by orgId): useVoiceToken's orgId
+// resolves async (null on first render, set after mint), so it isn't
+// available at lazy-useState init time. sessionStorage is already
+// per-tab, and this is a local UI echo — not the cross-org server data
+// VoiceRunsPanel guards — so a fixed key is correct here.
+//
+// Size budget: the persisted blob carries the attacker plan including
+// each probe's `goal` (the LLM system prompt, ~2-4 KB) + `qa_rule`. At
+// the MAX_TOTAL_PROBES cap of 5 that's ~30 KB — well under the ~5 MB
+// sessionStorage quota. Revisit if a future flow raises the cap.
+const PERSIST_KEY = 'bastion.spawnWizard.v1';
+
+function loadPersistedWizard() {
+    if (typeof window === 'undefined') return null;
+    try {
+        const raw = window.sessionStorage.getItem(PERSIST_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch {
+        return null;
+    }
+}
+
+function savePersistedWizard(blob) {
+    if (typeof window === 'undefined') return;
+    try {
+        if (blob == null) window.sessionStorage.removeItem(PERSIST_KEY);
+        else window.sessionStorage.setItem(PERSIST_KEY, JSON.stringify(blob));
+    } catch {
+        /* quota / disabled — non-fatal, the UI just won't survive reload */
+    }
+}
+
 export default function SpawnProbeWizard({ setCurrentView }) {
-    const [step, setStep] = useState(0);
-    const [verticalId, setVerticalId] = useState(null);
-    const [language, setLanguage] = useState('English');
-    const [selectedPlugins, setSelectedPlugins] = useState([]);
-    const [selectedStrategies, setSelectedStrategies] = useState(['basic']);
-    const [config, setConfig] = useState({
+    // Rehydrate from sessionStorage once at mount. Only restore a run
+    // Default to a FRESH wizard. We only resume a persisted run if it's
+    // confirmed STILL LIVE on the gateway (see the resume-check effect
+    // below). Nick 2026-05-28: "if it's disconnected and done it should
+    // just bring me back to wizard." A finished run lives in Past Runs
+    // (transcript modal + WAV); it must not hijack a new Spawn-probe
+    // click by dropping the operator into a stale "calls live" view.
+    const DEFAULT_CONFIG = {
         targetDID: '',
         // One attacker per spawn is the default — keeps the demo tight
         // and the airtime cost predictable. Operators on the custom
@@ -103,7 +145,14 @@ export default function SpawnProbeWizard({ setCurrentView }) {
         // checked, both agents call the `bastion-livekit-turn` sidecar
         // before firing the LLM so peer turn must read as complete first.
         useTurnDetector: false,
-    });
+    };
+
+    const [step, setStep] = useState(0);
+    const [verticalId, setVerticalId] = useState(null);
+    const [language, setLanguage] = useState('English');
+    const [selectedPlugins, setSelectedPlugins] = useState([]);
+    const [selectedStrategies, setSelectedStrategies] = useState(['basic']);
+    const [config, setConfig] = useState(DEFAULT_CONFIG);
     const [selectedAttackerId, setSelectedAttackerId] = useState(null);
     const [spawnState, setSpawnState] = useState({ status: 'idle' });
 
@@ -113,6 +162,73 @@ export default function SpawnProbeWizard({ setCurrentView }) {
     // Cached per (user, org) in sessionStorage by useVoiceToken so we
     // don't mint a fresh key on every wizard render.
     const { apiKey: voiceToken, orgId: voiceOrgId, status: voiceTokenStatus, mint: refreshVoiceToken } = useVoiceToken();
+
+    // Snapshot the run + resume point on every meaningful change so a
+    // modal close / reload can rehydrate. Skip writing the empty default
+    // (status 'idle' AND step 0) — nothing worth restoring, and it keeps
+    // a fresh tab clean.
+    useEffect(() => {
+        if (spawnState.status === 'idle' && step === 0) {
+            savePersistedWizard(null);
+            return;
+        }
+        savePersistedWizard({
+            step,
+            verticalId,
+            language,
+            selectedPlugins,
+            selectedStrategies,
+            config,
+            selectedAttackerId,
+            spawnState,
+        });
+    }, [step, verticalId, language, selectedPlugins, selectedStrategies, config, selectedAttackerId, spawnState]);
+
+    // Resume-on-reopen — but ONLY for a run that's still live. On mount,
+    // load any persisted run and check its call_control_ids against the
+    // gateway's active-calls list. If at least one is still live, restore
+    // the wizard onto the spawn step so the operator keeps watching. If
+    // none are active (the run finished or disconnected), discard the
+    // blob and stay on the fresh wizard. Runs once on mount.
+    useEffect(() => {
+        const p = loadPersistedWizard();
+        const attackers = p?.spawnState?.attackers;
+        if (!p || !Array.isArray(attackers) || attackers.length === 0) {
+            savePersistedWizard(null);
+            return;
+        }
+        let cancelled = false;
+        (async () => {
+            try {
+                const ccids = attackers.map((a) => a.call_control_id).filter(Boolean);
+                if (ccids.length === 0) { savePersistedWizard(null); return; }
+                const r = await fetch(`${GATEWAY}/v1/calls/active`, { mode: 'cors' });
+                const j = r.ok ? await r.json() : { calls: [] };
+                if (cancelled) return;
+                const active = new Set((j.calls || []).map((c) => c.call_control_id));
+                const stillLive = ccids.some((id) => active.has(id));
+                if (!stillLive) {
+                    // Done / disconnected → fresh wizard. Transcript is in Past Runs.
+                    savePersistedWizard(null);
+                    return;
+                }
+                // Genuinely live → restore and jump to the spawn step.
+                setVerticalId(p.verticalId ?? null);
+                setLanguage(p.language ?? 'English');
+                setSelectedPlugins(p.selectedPlugins ?? []);
+                setSelectedStrategies(p.selectedStrategies ?? ['basic']);
+                setConfig(p.config ?? DEFAULT_CONFIG);
+                setSelectedAttackerId(p.selectedAttackerId ?? null);
+                setSpawnState(p.spawnState);
+                const isCustomResume = p.verticalId === 'custom';
+                setStep((isCustomResume ? STEPS_CUSTOM.length : STEPS_SIMPLE.length) - 1);
+            } catch {
+                if (!cancelled) savePersistedWizard(null);
+            }
+        })();
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const vertical = verticalId ? getVertical(verticalId) : null;
     const isCustom = vertical?.id === 'custom';
@@ -175,9 +291,23 @@ export default function SpawnProbeWizard({ setCurrentView }) {
         if (isCustom) return;
         if (step !== STEPS.length - 1) return;
         if (spawnState.status !== 'idle') return;
+        // Don't re-dial a rehydrated run: a restored blob lands here with
+        // status 'idle' only if it never fired, but guard on attackers
+        // length too so a partially-persisted run can never double-fire.
+        if (spawnState.attackers?.length) return;
         spawn();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [step, isCustom, spawnState.status]);
+
+    // Clear the run back to a clean slate — "Start new probe" on the
+    // running banner. Wipes the persisted blob so the next open starts
+    // fresh at step 0.
+    const resetWizard = () => {
+        savePersistedWizard(null);
+        setSpawnState({ status: 'idle' });
+        setSelectedAttackerId(null);
+        setStep(0);
+    };
 
     // Build the fan-out matrix from the wizard's selections, then cap
     // total probes at MAX_TOTAL_PROBES. The cap is on TOTAL calls fired
@@ -195,14 +325,25 @@ export default function SpawnProbeWizard({ setCurrentView }) {
         // ("Dosage calculation") instead of the raw plugin id
         // ("pharmacy:dosage-calculation") — buyer-facing copy, no IDs.
         const labelByPluginId = new Map((vertical?.plugins || []).map((p) => [p.id, p.label]));
+        const descByPluginId = new Map((vertical?.plugins || []).map((p) => [p.id, p.description]));
         const humanLabel = (id) => labelByPluginId.get(id) || id;
+        const strategyLabel = (id) => VOICE_TRANSLATABLE_STRATEGIES.find((s) => s.id === id)?.label || id;
         for (let a = 0; a < config.attackerCount; a += 1) {
             for (let p = 0; p < plugins.length; p += 1) {
+                const sid = strategies[(a + p) % strategies.length];
                 plan.push({
                     attacker_index: a,
                     plugin_id: plugins[p],
                     plugin_label: humanLabel(plugins[p]),
-                    strategy_id: strategies[(a + p) % strategies.length],
+                    // Stage/goal metadata for the transcript header
+                    // (Yousuf 2026-05-27: "how do we know what stage and
+                    // goal we are in"). Carried on the attacker row so the
+                    // StageGoalHeader can render plugin · strategy ·
+                    // vertical without re-deriving from the catalog.
+                    plugin_description: descByPluginId.get(plugins[p]) || '',
+                    strategy_id: sid,
+                    strategy_label: strategyLabel(sid),
+                    vertical_label: vertical?.label || vertical?.id || '',
                 });
             }
         }
@@ -287,6 +428,12 @@ export default function SpawnProbeWizard({ setCurrentView }) {
                         status: resp.ok ? 'live' : 'failed',
                         call_control_id: callId,
                         error: resp.ok ? null : `HTTP ${resp.status}`,
+                        // Persist the actual goal + QA rule sent to the
+                        // gateway so the transcript header (and a later
+                        // rehydration) can show exactly what this probe
+                        // was testing.
+                        goal,
+                        qa_rule: qaRule,
                     };
                     next.completed = i + 1;
                     return next;
@@ -354,6 +501,7 @@ export default function SpawnProbeWizard({ setCurrentView }) {
                                 selectedStrategies={selectedStrategies}
                                 state={spawnState}
                                 onSpawn={spawn}
+                                onReset={resetWizard}
                                 onViewReport={() => setCurrentView('reports')}
                                 selectedAttackerId={selectedAttackerId}
                                 onSelectAttacker={setSelectedAttackerId}
@@ -675,7 +823,7 @@ function ConfigureStep({ vertical, config, setConfig, selectedPlugins, selectedS
     );
 }
 
-function SpawnStep({ vertical, config, selectedPlugins, selectedStrategies, state, onSpawn, onViewReport, selectedAttackerId, onSelectAttacker }) {
+function SpawnStep({ vertical, config, selectedPlugins, selectedStrategies, state, onSpawn, onReset, onViewReport, selectedAttackerId, onSelectAttacker }) {
     // Auto-select the first live attacker so the transcript pane has
     // something to show as soon as a call connects, without the user
     // having to click.
@@ -746,22 +894,71 @@ function SpawnStep({ vertical, config, selectedPlugins, selectedStrategies, stat
             />
 
             {state.status === 'running' && (
-                <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 p-4 flex items-center justify-between">
+                <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 p-4 flex items-center justify-between gap-4">
                     <div>
                         <div className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">Calls dispatched · run is in progress</div>
                         <div className="text-[11px] text-emerald-800 dark:text-emerald-300">
-                            Calls stay live on the gateway. When grading completes, a new Posture Report appears in the Reports section.
+                            Calls stay live on the gateway. When grading completes, a new Posture Report appears in the Reports section. This run stays here if you close and reopen.
                         </div>
                     </div>
-                    <button
-                        onClick={onViewReport}
-                        className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest px-5 py-2.5 border border-blue-500 text-white bg-blue-500 hover:bg-blue-600 cursor-pointer"
-                    >
-                        <FileText size={12} weight="bold" />
-                        View Reports
-                        <ArrowRight size={12} weight="bold" />
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                        {onReset && (
+                            <button
+                                onClick={onReset}
+                                className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest px-4 py-2.5 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer bg-transparent transition-colors"
+                            >
+                                Start new probe
+                            </button>
+                        )}
+                        <button
+                            onClick={onViewReport}
+                            className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest px-5 py-2.5 border border-blue-500 text-white bg-blue-500 hover:bg-blue-600 cursor-pointer"
+                        >
+                            <FileText size={12} weight="bold" />
+                            View Reports
+                            <ArrowRight size={12} weight="bold" />
+                        </button>
+                    </div>
                 </div>
+            )}
+        </div>
+    );
+}
+
+// Stage + goal context above the transcript. Yousuf 2026-05-27: "how
+// do we know what stage and goal we are in during the probe test."
+// Today only the Probing stage exists (reports/analysis are WIP) so
+// "Stage 1 of 1 · Probing" is hard-coded honestly rather than faked as
+// a multi-stage pipeline. The QA rule + full attacker brief sit behind
+// <details> so the header stays compact.
+function StageGoalHeader({ selected }) {
+    if (!selected) return null;
+    const subtitle = [selected.vertical_label, selected.plugin_label, selected.strategy_label]
+        .filter(Boolean)
+        .join(' · ');
+    return (
+        <div className="border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 px-3 py-2 mb-2">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300">
+                Stage 1 of 1 · Probing
+            </div>
+            {subtitle && (
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{subtitle}</div>
+            )}
+            {selected.qa_rule && (
+                <details className="mt-1.5">
+                    <summary className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 cursor-pointer hover:text-slate-700 dark:hover:text-slate-200 select-none">
+                        QA rule
+                    </summary>
+                    <p className="text-[11px] font-mono text-slate-600 dark:text-slate-300 mt-1 leading-snug whitespace-pre-wrap">{selected.qa_rule}</p>
+                </details>
+            )}
+            {selected.goal && (
+                <details className="mt-1">
+                    <summary className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 cursor-pointer hover:text-slate-700 dark:hover:text-slate-200 select-none">
+                        Attacker brief
+                    </summary>
+                    <pre className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-snug whitespace-pre-wrap max-h-40 overflow-y-auto">{selected.goal}</pre>
+                </details>
             )}
         </div>
     );
@@ -809,6 +1006,7 @@ function AttackerListWithTranscript({ attackers, selectedId, onSelect }) {
                         </a>
                     )}
                 </div>
+                <StageGoalHeader selected={selected} />
                 <div className="border border-slate-200 dark:border-slate-800 bg-black overflow-hidden" style={{ height: '480px' }}>
                     {selected?.call_control_id ? (
                         <LiveTranscriptFrame

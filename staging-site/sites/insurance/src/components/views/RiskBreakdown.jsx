@@ -91,28 +91,23 @@ export function RiskBreakdown({ reportData, setCurrentView, persona }) {
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {fleet.total_transactions?.toLocaleString() || 0} transactions across {fleet.agents_monitored || 0} agents over {fleet.monitoring_hours?.toLocaleString() || 0} hours
-              <span className="mx-2 text-slate-300 dark:text-slate-600">|</span>
-              <LinkText onClick={nav('telemetry')}>View live data</LinkText>
             </p>
           </div>
-          <div className="text-right">
-            <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-              {risk.risk_classification || '—'}
-            </span>
-          </div>
+          {risk.risk_classification ? (
+            <div className="text-right">
+              <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                {risk.risk_classification}
+              </span>
+            </div>
+          ) : null}
         </div>
 
         {/* With Controls (lead) → reduction → Without Controls (counterfactual) */}
         <div className="grid grid-cols-3 gap-6 items-center">
-          <div
-            onClick={nav('policy')}
-            className="text-center py-4 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 cursor-pointer hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
-          >
+          <div className="text-center py-4 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
             <div className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-2">With Controls</div>
             <div className="text-4xl font-bold text-slate-800 dark:text-slate-100 tabular-nums">{netRisk.toFixed(1)}</div>
-            <div className="text-[10px] text-slate-400 mt-1 flex items-center justify-center gap-1">
-              View enforcement policy <ArrowSquareOut size={9} />
-            </div>
+            <div className="text-[10px] text-slate-400 mt-1">Net risk score</div>
           </div>
           <div className="text-center py-4">
             <ArrowLeft size={20} className="text-slate-300 mx-auto mb-2" />
@@ -132,29 +127,21 @@ export function RiskBreakdown({ reportData, setCurrentView, persona }) {
             label="PII Remediation"
             value={`${((fleet.pii_remediation_rate ?? 0) * 100 - stableJitter('piiRem', pulseBucket) * 0.4).toFixed(1)}%`}
             sub={`${(pii.total_detections ?? 0) + Math.floor(liveStats.findings * 0.3)} detected, ${pii.residual_exposures ?? 0} residual`}
-            onClick={nav('telemetry')}
-            linkLabel="Inspect PII events"
           />
           <ClickableStat
             label="Actions Blocked"
             value={(tools.total_blocked ?? 0) + Math.floor(liveStats.findings * 0.4)}
             sub={`of ${((tools.total_attempted ?? 0) + liveStats.runs * 6).toLocaleString()} attempted`}
-            onClick={nav('policy')}
-            linkLabel="View tool policies"
           />
           <ClickableStat
             label="Anomalies Flagged"
             value={(anomalies.total_anomalies ?? 0) + Math.floor(liveStats.findings * 0.2)}
             sub={`${(((fleet.anomaly_rate ?? 0) * 100) + stableJitter('anom', pulseBucket) * 0.3).toFixed(2)}% anomaly rate`}
-            onClick={nav('telemetry')}
-            linkLabel="View telemetry"
           />
           <ClickableStat
             label="Total Incidents"
             value={(totalIncidents + Math.floor(liveStats.findings * 0.6)).toLocaleString()}
             sub={`${severities.sev1_critical ?? 0} critical, ${(severities.sev2_major ?? 0) + Math.floor(liveStats.findings * 0.1)} major`}
-            onClick={nav('report')}
-            linkLabel="View full report"
           />
         </div>
       </div>
@@ -164,7 +151,7 @@ export function RiskBreakdown({ reportData, setCurrentView, persona }) {
 
         {/* Component Scores — shared component, also rendered prominently
             on the Overview page so the same breakdown is the lead surface. */}
-        <ScoreDecomposition reportData={reportData} setCurrentView={setCurrentView} persona={persona} />
+        <ScoreDecomposition reportData={reportData} setCurrentView={setCurrentView} persona={persona} hideHeaderLink disableRowLinks />
 
 
         {/* Control Effectiveness — replaces the prior Financial Exposure
@@ -177,7 +164,6 @@ export function RiskBreakdown({ reportData, setCurrentView, persona }) {
         <div className={`${CARD} p-6`}>
           <div className="flex items-center justify-between mb-1">
             <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-widest">Control Effectiveness</h3>
-            <LinkText onClick={nav('report')}>Full report</LinkText>
           </div>
           <p className="text-[11px] text-slate-400 mb-5">What Bastion observed and what it stopped during this period</p>
 
@@ -186,7 +172,6 @@ export function RiskBreakdown({ reportData, setCurrentView, persona }) {
             <div className="border border-slate-100 dark:border-slate-700 p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">Detection & Enforcement</span>
-                <LinkText onClick={nav('telemetry')}>Inspect records</LinkText>
               </div>
               <table className="w-full text-xs">
                 <tbody>
@@ -218,7 +203,6 @@ export function RiskBreakdown({ reportData, setCurrentView, persona }) {
             <div className="border border-slate-100 dark:border-slate-700 p-4">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">Operating Throughput</div>
-                <LinkText onClick={nav('telemetry')}>Live metrics</LinkText>
               </div>
               <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
                 <div className="flex justify-between"><span className="text-slate-500">Transactions observed</span><span className="font-bold text-slate-800 dark:text-slate-100 tabular-nums">{(fleet.total_transactions ?? 0).toLocaleString()}</span></div>
@@ -238,7 +222,6 @@ export function RiskBreakdown({ reportData, setCurrentView, persona }) {
         <div className={`${CARD} p-6`}>
           <div className="flex items-center justify-between mb-1">
             <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-widest">Severity Distribution</h3>
-            <LinkText onClick={nav('report')}>Incident register</LinkText>
           </div>
           <p className="text-[11px] text-slate-400 mb-4">{totalIncidents.toLocaleString()} incidents over 6 months</p>
           <table className="w-full text-xs">
@@ -254,7 +237,7 @@ export function RiskBreakdown({ reportData, setCurrentView, persona }) {
               {sevList.map((s) => {
                 const pct = totalIncidents > 0 ? (s.count / totalIncidents * 100) : 0;
                 return (
-                  <tr key={s.name} className="border-b border-slate-100 dark:border-slate-800/50 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" onClick={nav('report')}>
+                  <tr key={s.name} className="border-b border-slate-100 dark:border-slate-800/50">
                     <td className="py-2.5">
                       <span className="font-bold text-slate-700 dark:text-slate-200">{s.name}</span>
                       <span className="text-slate-400 ml-2">{s.desc}</span>
@@ -273,7 +256,6 @@ export function RiskBreakdown({ reportData, setCurrentView, persona }) {
         <div className={`${CARD} p-6`}>
           <div className="flex items-center justify-between mb-1">
             <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-widest">Agent Risk Contribution</h3>
-            <LinkText onClick={nav('agents')}>Agent details</LinkText>
           </div>
           <p className="text-[11px] text-slate-400 mb-4">Proportion of fleet risk attributed to each agent</p>
           <table className="w-full text-xs">
@@ -289,7 +271,7 @@ export function RiskBreakdown({ reportData, setCurrentView, persona }) {
             </thead>
             <tbody>
               {agentExposure.map((a) => (
-                <tr key={a.agent_id} className="border-b border-slate-100 dark:border-slate-800/50 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors" onClick={nav('agents')}>
+                <tr key={a.agent_id} className="border-b border-slate-100 dark:border-slate-800/50">
                   <td className="py-2.5 font-semibold text-slate-700 dark:text-slate-200">{agentLabels[a.agent_id] || a.agent_id}</td>
                   <td className="py-2.5 text-right text-slate-800 dark:text-slate-100 tabular-nums">{a.transactions.toLocaleString()}</td>
                   <td className="py-2.5 text-right text-slate-800 dark:text-slate-100 tabular-nums">{a.pii_records}</td>

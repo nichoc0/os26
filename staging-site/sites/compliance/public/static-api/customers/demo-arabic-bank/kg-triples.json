@@ -36,6 +36,25 @@
     { "h": "ScopeFile:voice_banking_assistant.md", "r": "anchored_in",  "t": "Framework:CBB_Rulebook_Vol2",                  "source": "agent_catalog" },
     { "h": "ScopeFile:voice_banking_assistant.md", "r": "anchored_in",  "t": "Framework:AAOIFI_GS",                          "source": "agent_catalog" },
     { "h": "ScopeFile:voice_banking_assistant.md", "r": "reviewed_by",  "t": "SSB:Sharia_Supervisory_Board",                 "source": "agent_catalog" },
-    { "h": "SSB:Sharia_Supervisory_Board",    "r": "governed_by",       "t": "Standard:GS-20_SSB_Functions",                 "source": "agent_catalog" }
+    { "h": "SSB:Sharia_Supervisory_Board",    "r": "governed_by",       "t": "Standard:GS-20_SSB_Functions",                 "source": "agent_catalog" },
+
+    { "h": "Policy:scope_v1.md",                       "r": "defines_clause",   "t": "Clause:NonAdvisory",                            "source": "policy-upload:scope_v1.md" },
+    { "h": "Policy:scope_v1.md",                       "r": "defines_clause",   "t": "Clause:NoTransactionExecution",                 "source": "policy-upload:scope_v1.md" },
+    { "h": "Policy:scope_v1.md",                       "r": "defines_clause",   "t": "Clause:NoCrossAccountDisclosure",               "source": "policy-upload:scope_v1.md" },
+    { "h": "Policy:scope_v1.md",                       "r": "defines_clause",   "t": "Clause:AuthChallengeBeforeBankerTransfer",      "source": "policy-upload:scope_v1.md" },
+    { "h": "Policy:scope_v1.md",                       "r": "defines_clause",   "t": "Clause:BilingualOpeningArEn",                   "source": "policy-upload:scope_v1.md" },
+    { "h": "Policy:scope_v1.md",                       "r": "applies_to",       "t": "Agent:Voice Banking Assistant",                 "source": "policy-upload:scope_v1.md" },
+    { "h": "Policy:scope_v1.md",                       "r": "reviewed_by",      "t": "SSB:Sharia_Supervisory_Board",                  "source": "policy-upload:scope_v1.md" },
+    { "h": "Policy:scope_v1.md",                       "r": "anchored_in",      "t": "Framework:CBB_Rulebook_Vol2",                   "source": "policy-upload:scope_v1.md" },
+    { "h": "Policy:scope_v1.md",                       "r": "anchored_in",      "t": "Framework:AAOIFI_GS",                           "source": "policy-upload:scope_v1.md" },
+    { "h": "Clause:NonAdvisory",                       "r": "maps_to_module",   "t": "Module:BC",                                     "source": "policy-upload:scope_v1.md" },
+    { "h": "Clause:NoCrossAccountDisclosure",          "r": "maps_to_module",   "t": "Module:FC",                                     "source": "policy-upload:scope_v1.md" },
+    { "h": "Clause:NoCrossAccountDisclosure",          "r": "maps_to_module",   "t": "Module:AML",                                    "source": "policy-upload:scope_v1.md" },
+    { "h": "Clause:AuthChallengeBeforeBankerTransfer", "r": "maps_to_module",   "t": "Module:HC",                                     "source": "policy-upload:scope_v1.md" },
+    { "h": "Clause:NoTransactionExecution",            "r": "blocks",           "t": "Tool:execute_trade",                            "source": "policy-upload:scope_v1.md" },
+    { "h": "Clause:NoTransactionExecution",            "r": "blocks",           "t": "Tool:wire_transfer_initiate",                   "source": "policy-upload:scope_v1.md" },
+    { "h": "Clause:NoCrossAccountDisclosure",          "r": "blocks",           "t": "Tool:account_lookup",                           "source": "policy-upload:scope_v1.md" },
+    { "h": "Clause:AuthChallengeBeforeBankerTransfer", "r": "guards",           "t": "Tool:transfer_to_banker",                       "source": "policy-upload:scope_v1.md" },
+    { "h": "Clause:BilingualOpeningArEn",              "r": "configures",       "t": "Language:Arabic then English",                  "source": "policy-upload:scope_v1.md" }
   ]
 }

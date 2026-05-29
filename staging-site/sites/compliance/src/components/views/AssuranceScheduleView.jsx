@@ -135,19 +135,30 @@ export default function AssuranceScheduleView({ setCurrentView, navigate, onSche
                             Same Bastion SDK in every pipeline. Drop the snippet in, set <code className="font-mono text-[10px] px-1 py-0.5 bg-slate-100 dark:bg-slate-800">BASTION_API_KEY</code> as a secret, exit non-zero on new high-or-critical. Pick your SDK below.
                         </p>
                     </div>
-                    <div className="flex border border-slate-300 dark:border-slate-700 shrink-0">
-                        <button
-                            onClick={() => setSdk('npm')}
-                            className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest cursor-pointer ${sdk === 'npm' ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
+                    <div className="flex items-center gap-3 shrink-0">
+                        <a
+                            href={`${import.meta.env.BASE_URL}docs`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
+                            title="Open the full Bastion SDK docs in a new tab."
                         >
-                            npm
-                        </button>
-                        <button
-                            onClick={() => setSdk('pypi')}
-                            className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest cursor-pointer border-l border-slate-300 dark:border-slate-700 ${sdk === 'pypi' ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
-                        >
-                            pypi
-                        </button>
+                            Docs <ArrowSquareOut size={10} />
+                        </a>
+                        <div className="flex border border-slate-300 dark:border-slate-700">
+                            <button
+                                onClick={() => setSdk('npm')}
+                                className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest cursor-pointer ${sdk === 'npm' ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
+                            >
+                                npm
+                            </button>
+                            <button
+                                onClick={() => setSdk('pypi')}
+                                className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest cursor-pointer border-l border-slate-300 dark:border-slate-700 ${sdk === 'pypi' ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
+                            >
+                                pypi
+                            </button>
+                        </div>
                     </div>
                 </header>
                 <div className="px-5 pt-3 pb-1 text-[11px] text-slate-600 dark:text-slate-300 flex items-center gap-2">
